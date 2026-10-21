@@ -1,10 +1,11 @@
 <title>FPS Map Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js"></script>
 <style>
-/* Layout: one full-height workspace. Top bar, then the map canvas, then the enemy tray + tool dock.
-   Properties slide up over the bottom of the canvas when something is selected. */
+/* Layout: a main menu over one full-height workspace. Top bar, map canvas, enemy tray + tool dock.
+   Selecting something shows a slim bar over the bottom of the canvas; "More" expands it. */
 :root {
   --bg: #e4e9ee;
   --surface: #fbfcfd;
@@ -20,6 +21,7 @@
   --grid-bg: #f4f6f8;
   --grid-minor: #e2e7ec;
   --grid-major: #c4cdd7;
+  --wall: #2a3542;
   --enemy-ring: #ffffff;
   --is-dark: 0;
   --shadow: 0 6px 24px rgba(20, 32, 44, .14);
@@ -31,7 +33,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0c1117; --surface: #141b23; --surface-2: #1b242e; --fg: #e3e9ef; --muted: #8b98a7; --line: #27323e;
     --accent: #2fc4ae; --accent-fg: #052520; --accent-soft: #11362f; --warn: #e3a52a; --danger: #f0575c;
-    --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --enemy-ring: #0c1117; --is-dark: 1;
+    --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --wall: #b9c4cf; --enemy-ring: #0c1117; --is-dark: 1;
     --shadow: 0 6px 24px rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -39,7 +41,7 @@
 :root[data-theme="dark"] {
   --bg: #0c1117; --surface: #141b23; --surface-2: #1b242e; --fg: #e3e9ef; --muted: #8b98a7; --line: #27323e;
   --accent: #2fc4ae; --accent-fg: #052520; --accent-soft: #11362f; --warn: #e3a52a; --danger: #f0575c;
-  --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --enemy-ring: #0c1117; --is-dark: 1;
+  --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --wall: #b9c4cf; --enemy-ring: #0c1117; --is-dark: 1;
   --shadow: 0 6px 24px rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -56,6 +58,30 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 
+/* Main menu */
+.menu {
+  position: fixed; inset: 0; z-index: 30; overflow-y: auto;
+  background:
+    linear-gradient(var(--grid-minor) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--grid-bg);
+  padding: calc(env(safe-area-inset-top, 0px) + 12vh) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 32px) max(16px, env(safe-area-inset-left, 0px));
+}
+.menu-inner { display: flex; flex-direction: column; align-items: center; gap: 40px; max-width: 420px; margin: 0 auto; text-align: center; }
+.menu-title { display: grid; gap: 10px; justify-items: center; }
+.menu-title h1 { margin: 0; font: 700 clamp(34px, 10vw, 52px)/1 var(--font-display); letter-spacing: .01em; text-wrap: balance; }
+.menu-title p { margin: 0; color: var(--muted); font-size: 14px; }
+.menu-mark { width: 64px; height: 64px; color: var(--accent); }
+.menu-mark svg { width: 64px; height: 64px; stroke-width: 1.6; }
+.menu-buttons { display: grid; gap: 12px; width: min(300px, 100%); }
+.mbtn {
+  height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow);
+  font: 600 16px var(--font-display); letter-spacing: .1em; text-transform: uppercase;
+}
+.mbtn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+.mcontinue { background: none; border: 0; color: var(--accent); font-weight: 600; padding: 8px 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcontinue span { color: var(--muted); font-weight: 500; }
+
 /* Top bar */
 .top {
   flex: none; display: flex; align-items: center; gap: 8px;
@@ -66,6 +92,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .eyebrow { font: 600 10px/1.2 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; gap: 6px; align-items: center; white-space: nowrap; }
 .eyebrow .tag { color: var(--warn); }
 .mapname { font: 600 18px/1.2 var(--font-display); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.mapname > span { overflow: hidden; text-overflow: ellipsis; }
 .mapname svg { width: 16px; height: 16px; color: var(--muted); }
 .status { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
@@ -74,22 +101,23 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .status[data-state="err"] i { background: var(--danger); }
 .iconbtn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); }
 .iconbtn:disabled { opacity: .35; cursor: default; }
+@media (max-width: 380px) { .status span { display: none; } }
 
 /* Stage */
 .stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
 .floors {
   position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px));
-  display: flex; flex-direction: column; align-items: stretch; width: 92px;
+  display: flex; flex-direction: column; align-items: stretch; width: 88px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
 }
-.floors button { border: 0; background: none; display: grid; place-items: center; padding: 6px 4px; }
+.floors button { border: 0; background: none; display: grid; place-items: center; padding: 5px 4px; }
 .floors button:disabled { opacity: .3; cursor: default; }
-.floors .fname { border-block: 1px solid var(--line); padding: 6px 6px; gap: 1px; }
+.floors .fname { border-block: 1px solid var(--line); padding: 6px; gap: 1px; }
 .floors .fname b { font: 600 12px/1.15 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; overflow-wrap: anywhere; }
 .floors .fname small { font: 500 10px var(--font-mono); color: var(--muted); }
 .hint {
-  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); right: 116px; width: fit-content; max-width: calc(100% - 128px);
+  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); width: fit-content; max-width: calc(100% - 124px);
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px;
   font-size: 12.5px; color: var(--fg); box-shadow: var(--shadow); pointer-events: none;
 }
@@ -99,28 +127,33 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 }
 .scale .sq { width: 12px; height: 12px; border: 1.5px solid var(--muted); border-radius: 2px; }
 
-/* Properties panel */
-.panel {
-  position: absolute; left: 8px; right: 8px; bottom: 8px; margin-inline: auto; max-width: 560px; max-height: 58%;
+/* Selection bar */
+.bar {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; margin-inline: auto; max-width: 560px; max-height: 50%;
   overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
 }
-.panel-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line); }
-.panel-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.panel-title strong { font: 600 16px var(--font-display); }
-.panel-title .dims { font-size: 12px; color: var(--muted); }
-.panel-actions { display: flex; gap: 4px; }
-.panel-actions button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 9px; background: var(--surface-2); }
-.panel-actions button.danger { color: var(--danger); }
-.panel-actions button.armed { width: auto; padding: 0 10px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 600; }
-.panel-body { display: grid; gap: 12px; padding: 12px 14px 14px; }
+.bar-row { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; gap: 6px; padding: 7px 7px 7px 12px; }
+.bar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bar-title strong { font: 600 15px/1.2 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-title span { font: 500 11.5px/1.3 var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row > button, .ministep button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 9px; background: var(--surface-2); flex: none; }
+.bar-row > button.danger { color: var(--danger); }
+.bar-row > button.armed { width: auto; padding: 0 10px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 600; }
+.bar-row > button[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.bar-row > button[aria-expanded="true"] svg { transform: rotate(180deg); }
+.ministep { display: flex; align-items: center; gap: 2px; flex: none; }
+.ministep button { width: 30px; font-size: 18px; line-height: 1; }
+.ministep span { min-width: 22px; text-align: center; font: 600 15px var(--font-mono); }
+.bar-more { display: grid; gap: 12px; padding: 10px 12px 14px; border-top: 1px solid var(--line); }
 .prow { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 10px; }
 .prow > .lbl { font: 600 11px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.ctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .ctrl input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); height: 28px; }
 .ctrl output { min-width: 84px; font: 500 13px var(--font-mono); }
+.ctrl .note { font-size: 12.5px; color: var(--muted); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-.seg button { border: 0; background: none; padding: 7px 14px; font-weight: 500; }
+.seg button { border: 0; background: none; padding: 7px 12px; font-weight: 500; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
@@ -133,6 +166,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .lockbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--muted); }
 .lockbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.smallbtn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; }
+.smallbtn svg { width: 16px; height: 16px; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); padding: 0; }
 .sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
@@ -155,6 +190,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
   border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; touch-action: pan-x; user-select: none; -webkit-user-select: none;
 }
 .chip i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--font-display); font-style: normal; box-shadow: 0 0 0 2px var(--enemy-ring) inset; }
+.chip.player { margin-right: 6px; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .tools { display: flex; gap: 4px; }
 .tool {
@@ -175,8 +211,11 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .sheet-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
 .sheet-head h2 { margin: 0; font: 600 20px var(--font-display); }
 .sheet section { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.sheet section:first-child { border-top: 0; padding-top: 0; }
 .sheet h3 { margin: 0; font: 600 11px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .sheet p { margin: 0; color: var(--muted); font-size: 13px; max-width: 60ch; }
+.setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.setrow > span { font-weight: 500; }
 .field { width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 0 12px; font: 500 15px var(--font-body); }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; }
@@ -198,10 +237,10 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
 .toast {
   position: fixed; z-index: 60; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
+  width: max-content; max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .panel, .sheet { animation: rise .16s ease-out; }
+  .bar, .sheet { animation: rise .16s ease-out; }
   @keyframes rise { from { transform: translateY(12px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
 @media (min-width: 720px) {
@@ -209,9 +248,26 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 }
 </style>
 
+<section class="menu" id="menu" aria-label="Main menu">
+  <div class="menu-inner">
+    <div class="menu-title">
+      <div class="menu-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M8 14h30v14h18v24H8z"/><path d="M38 28v10M22 14v14H8"/><circle cx="16" cy="40" r="3"/><circle cx="46" cy="44" r="3"/><path d="M28 36l4-6 4 6z"/></svg></div>
+      <h1>FPS Map Designer</h1>
+      <p>Block out levels on a 1 m grid</p>
+    </div>
+    <div class="menu-buttons">
+      <button class="mbtn primary" id="menunew">New Blank</button>
+      <button class="mbtn" id="menumaps">Maps</button>
+      <button class="mbtn" id="menusettings">Settings</button>
+    </div>
+    <button class="mcontinue" id="menucontinue">Continue <span id="menucontname"></span></button>
+  </div>
+</section>
+
 <header class="top">
+  <button class="iconbtn" id="home" aria-label="Main menu"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
   <button class="mapbtn" id="mapbtn" aria-label="Open maps menu">
-    <span class="eyebrow">FPS Map Designer <span class="tag" id="sampletag" hidden>Example</span></span>
+    <span class="eyebrow">Map <span class="tag" id="sampletag" hidden>Example</span></span>
     <span class="mapname"><span id="mapname">Map</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
   </button>
   <button class="status" id="status" data-state="ok" aria-live="polite"><i></i><span id="statustext">Ready</span></button>
@@ -228,12 +284,12 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     <button id="floordown" aria-label="Go down a floor"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
   </div>
   <div class="scale" id="scale"><span class="sq"></span><span id="scaletext">= 1 m</span></div>
-  <div class="panel" id="panel" hidden></div>
+  <div class="bar" id="bar" hidden></div>
 </main>
 
 <footer class="dock">
   <div class="trayhead">
-    <span class="eyebrow">Enemies · drag up onto the map</span>
+    <span class="eyebrow">Players &amp; enemies · drag up onto the map</span>
     <span class="eyebrow"><button id="edittypes">Edit types</button></span>
   </div>
   <div class="tray" id="tray"></div>
@@ -253,16 +309,18 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 'use strict';
 
 /* ---------- constants ---------- */
-const SNAP = { pos: 0.5, size: 0.5, rot: 15 };
 const MIN_SIZE = 0.25;
-const ENEMY_R = 0.45;            // metres; roughly a person's footprint
+const MARKER_R = 0.45;           // metres; roughly a person's footprint
+const WALL = 0.3;                // drawn wall thickness for rooms, metres
 const MIN_SCALE = 2, MAX_SCALE = 160;
 const MAX_SIDES = 12;
+const PLAYER_COLOR = '#0a8ff0';
+const PLAYER_TYPE = '__player';
 const SHAPE_COLORS = [
-  { name: 'Concrete', hex: '#8f99a5' }, { name: 'Wall', hex: '#4b5664' }, { name: 'Sand', hex: '#c2a878' },
+  { name: 'Concrete', hex: '#8f99a5' }, { name: 'Slate', hex: '#4b5664' }, { name: 'Sand', hex: '#c2a878' },
   { name: 'Wood', hex: '#8c6b4a' }, { name: 'Foliage', hex: '#5f9a5b' }, { name: 'Water', hex: '#3d84c6' },
 ];
-const ENEMY_COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#8e4ec6', '#d6409f', '#3e63dd', '#8db600'];
+const ENEMY_COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#8e4ec6', '#d6409f', '#8db600', '#687076'];
 const DEFAULT_TYPES = [
   { id: 'grunt', name: 'Grunt', color: '#e5484d' }, { id: 'sniper', name: 'Sniper', color: '#f76b15' },
   { id: 'heavy', name: 'Heavy', color: '#8e4ec6' }, { id: 'scout', name: 'Scout', color: '#ffc53d' },
@@ -272,6 +330,7 @@ const ICON = {
   dup: '<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
   del: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  more: '<path d="M6 15l6-6 6 6"/>',
   front: '<path d="M12 4v12M7 9l5-5 5 5M5 20h14"/>',
   back: '<path d="M12 20V8M7 15l5 5 5-5M5 4h14"/>',
   lock: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
@@ -288,11 +347,15 @@ const uid = () => Date.now().toString(36).slice(-5) + Math.random().toString(36)
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const snapTo = (v, s) => Math.round(v / s) * s;
 const round2 = v => Math.round(v * 100) / 100;
+const round4 = v => Math.round(v * 1e4) / 1e4;
 const fmt = v => { const r = Math.round(v * 10) / 10; return (Object.is(r, -0) ? 0 : r).toFixed(1); };
 const rad = d => d * Math.PI / 180;
 const deg = r => r * 180 / Math.PI;
+const norm360 = a => ((a % 360) + 360) % 360;
+const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const slug = s => (String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'map').slice(0, 60);
+const isHex = c => /^#[0-9a-f]{6}$/i.test(c);
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function mix(h, to, t) { const a = hexRgb(h), b = hexRgb(to); return 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')'; }
 function textOn(h) { const [r, g, b] = hexRgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#111820' : '#ffffff'; }
@@ -310,10 +373,17 @@ const LS = {
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
 
+/* ---------- settings ---------- */
+const settings = (() => {
+  const d = { snap: LS.get('mm2.snap') !== '0', step: 0.5, rotStep: 15, below: LS.get('mm2.below') !== '0', style: 'room', join: 'merge' };
+  try { return { ...d, ...JSON.parse(LS.get('mm2.settings') || '{}') }; } catch { return d; }
+})();
+const saveSettings = () => LS.set('mm2.settings', JSON.stringify(settings));
+
 /* ---------- map model ---------- */
 function blankMap(name) {
   const g = { id: uid(), name: 'Ground' };
-  return { app: 'fps-map-designer', v: 1, id: uid(), name, floors: [g], activeFloor: g.id, items: [],
+  return { app: 'fps-map-designer', v: 2, id: uid(), name, floors: [g], activeFloor: g.id, items: [],
     enemyTypes: DEFAULT_TYPES.map(t => ({ ...t })), lastSides: 4, lastColor: SHAPE_COLORS[0].hex, updated: Date.now() };
 }
 function sampleMap() {
@@ -321,26 +391,27 @@ function sampleMap() {
   m.sample = true;
   const g = m.floors[0], up = { id: uid(), name: 'Floor 1' };
   m.floors.push(up);
-  const [CON, WALL, SAND, WOOD, LEAF, WATER] = SHAPE_COLORS.map(c => c.hex);
-  const S = (f, o) => m.items.push({ id: uid(), floor: f.id, kind: 'poly', x: 0, y: 0, w: 4, h: 4, rot: 0, sides: 4, color: CON, lock: false, ...o });
+  const [CON, SLATE, SAND, WOOD, LEAF, WATER] = SHAPE_COLORS.map(c => c.hex);
+  const S = (f, o) => m.items.push({ id: uid(), floor: f.id, kind: 'poly', x: 0, y: 0, w: 4, h: 4, rot: 0, sides: 4, color: CON, lock: false, style: 'solid', walls: 'merge', ...o });
   const E = (f, type, x, y) => m.items.push({ id: uid(), floor: f.id, kind: 'enemy', type, x, y });
-  // ground floor: a 30 x 20 m warehouse with a door on the east side
-  S(g, { x: 0, y: -10, w: 30.5, h: 0.5, color: WALL });
-  S(g, { x: 0, y: 10, w: 30.5, h: 0.5, color: WALL });
-  S(g, { x: -15, y: 0, w: 0.5, h: 20, color: WALL });
-  S(g, { x: 15, y: -6, w: 0.5, h: 8, color: WALL });
-  S(g, { x: 15, y: 6, w: 0.5, h: 8, color: WALL });
+  const P = (f, x, y, rot) => m.items.push({ id: uid(), floor: f.id, kind: 'player', x, y, rot });
+  // ground floor: warehouse + east corridor merged into one space; office + storage as separate rooms
+  S(g, { x: 0, y: 0, w: 30, h: 20, style: 'room' });
+  S(g, { x: 19, y: 0, w: 8, h: 4, style: 'room' });
+  S(g, { x: -25, y: -5, w: 8, h: 10, color: WOOD, style: 'room', walls: 'divide' });
+  S(g, { x: -25, y: 4, w: 8, h: 8, color: SAND, style: 'room', walls: 'divide' });
   S(g, { x: -9, y: -6, w: 2, h: 2, color: SAND });
   S(g, { x: -7, y: -6, w: 2, h: 2, color: SAND });
   S(g, { x: -9, y: -4, w: 2, h: 2, color: SAND });
   S(g, { x: 6.5, y: 5, w: 3, h: 2, rot: 15, color: SAND });
-  [-5, 0, 5].forEach(x => S(g, { kind: 'circle', x, y: -1, w: 1, h: 1, lock: true, color: CON }));
+  [-5, 0, 5].forEach(x => S(g, { kind: 'circle', x, y: -1, w: 1, h: 1, lock: true, color: SLATE }));
   S(g, { x: -1, y: 5.5, w: 5, h: 5, sides: 6, color: CON });
   S(g, { x: 10, y: -6, w: 4, h: 4, sides: 8, color: WATER });
-  S(g, { kind: 'circle', x: 20, y: -6, w: 3, h: 3, lock: true, color: LEAF });
-  S(g, { kind: 'circle', x: 21, y: 3, w: 4, h: 4, lock: true, color: LEAF });
-  S(g, { x: 19.5, y: 8, w: 3, h: 3, sides: 3, color: LEAF });
-  E(g, 'grunt', -3, -6); E(g, 'grunt', 3, -7); E(g, 'heavy', -1, 5.5); E(g, 'grunt', 9, 6); E(g, 'scout', 18, 0);
+  S(g, { kind: 'circle', x: 21, y: -7, w: 3, h: 3, lock: true, color: LEAF });
+  S(g, { kind: 'circle', x: 22, y: 7, w: 4, h: 4, lock: true, color: LEAF });
+  S(g, { x: 27, y: -6, w: 3, h: 3, sides: 3, color: LEAF });
+  E(g, 'grunt', -3, -6); E(g, 'grunt', 3, -7); E(g, 'heavy', -1, 5.5); E(g, 'grunt', 9, 6); E(g, 'scout', -25, 5);
+  P(g, 21.5, 0, 270); P(g, -25, -7, 180);
   // floor 1: a catwalk along the north wall and a landing on the west side
   S(up, { x: 0, y: -8.5, w: 29, h: 2.5, color: WOOD });
   S(up, { x: -12.5, y: -4, w: 4, h: 6, color: WOOD });
@@ -353,20 +424,26 @@ function normalize(m) {
   m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor') }));
   if (!m.floors.some(f => f.id === m.activeFloor)) m.activeFloor = m.floors[0].id;
   if (!Array.isArray(m.enemyTypes) || !m.enemyTypes.length) m.enemyTypes = DEFAULT_TYPES.map(t => ({ ...t }));
-  m.enemyTypes = m.enemyTypes.map(t => ({ id: String(t.id || uid()), name: String(t.name || 'Enemy'), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : ENEMY_COLORS[0] }));
+  m.enemyTypes = m.enemyTypes.map(t => ({ id: String(t.id || uid()), name: String(t.name || 'Enemy'), color: isHex(t.color) ? t.color : ENEMY_COLORS[0] }));
   const floorIds = new Set(m.floors.map(f => f.id));
   const num = (v, d) => Number.isFinite(+v) ? +v : d;
-  m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy'].includes(i.kind)).map(i => {
+  m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy', 'player'].includes(i.kind)).map(i => {
     const o = { id: String(i.id || uid()), floor: i.floor, kind: i.kind, x: num(i.x, 0), y: num(i.y, 0) };
     if (i.kind === 'enemy') { o.type = m.enemyTypes.some(t => t.id === i.type) ? i.type : m.enemyTypes[0].id; return o; }
-    return Object.assign(o, { w: Math.max(MIN_SIZE, num(i.w, 4)), h: Math.max(MIN_SIZE, num(i.h, 4)), rot: num(i.rot, 0), sides: clamp(Math.round(num(i.sides, 4)), 3, MAX_SIDES), color: /^#[0-9a-f]{6}$/i.test(i.color) ? i.color : SHAPE_COLORS[0].hex, lock: !!i.lock });
+    if (i.kind === 'player') { o.rot = norm360(num(i.rot, 0)); return o; }
+    return Object.assign(o, {
+      w: Math.max(MIN_SIZE, num(i.w, 4)), h: Math.max(MIN_SIZE, num(i.h, 4)), rot: num(i.rot, 0),
+      sides: clamp(Math.round(num(i.sides, 4)), 3, MAX_SIDES), color: isHex(i.color) ? i.color : SHAPE_COLORS[0].hex, lock: !!i.lock,
+      style: i.style === 'room' ? 'room' : 'solid',          // maps from v1 had only solid shapes
+      walls: i.walls === 'divide' ? 'divide' : 'merge',
+    });
   });
   m.id = String(m.id || uid());
   m.name = String(m.name || 'Untitled map').slice(0, 80);
   m.lastSides = clamp(Math.round(num(m.lastSides, 4)), 3, MAX_SIDES);
-  m.lastColor = m.lastColor || SHAPE_COLORS[0].hex;
+  m.lastColor = isHex(m.lastColor) ? m.lastColor : SHAPE_COLORS[0].hex;
   m.updated = num(m.updated, Date.now());
-  m.app = 'fps-map-designer'; m.v = 1;
+  m.app = 'fps-map-designer'; m.v = 2;
   return m;
 }
 
@@ -431,33 +508,33 @@ let map = null;
 let view = { W: 0, H: 0, cx: 0, cy: 0, s: 24 };   // cx/cy: world point at screen centre; s: px per metre
 let dpr = 1, fitted = false;
 let selectedId = null;
-let tool = 'select';                              // 'select' | 'circle' | 'poly' | 'enemy:<typeId>'
-let snap = LS.get('mm2.snap') !== '0';
-let showBelow = LS.get('mm2.below') !== '0';
+let tool = 'select';                              // 'select' | 'circle' | 'poly' | 'player' | 'enemy:<typeId>'
+let barMore = false;
 let history = [], future = [];
 let livePre = null;
 let edits = 0;
 let T = {};
 
-const canvas = $('#map'), ctx = canvas.getContext('2d'), stage = $('#stage'), panel = $('#panel');
+const canvas = $('#map'), ctx = canvas.getContext('2d'), stage = $('#stage'), bar = $('#bar');
 
 const floorIndex = () => Math.max(0, map.floors.findIndex(f => f.id === map.activeFloor));
 const byId = id => map.items.find(i => i.id === id);
 const selected = () => (selectedId && byId(selectedId)) || null;
 const typeOf = id => map.enemyTypes.find(t => t.id === id) || map.enemyTypes[0];
-function shapeName(it) {
+const isMarker = it => it.kind === 'enemy' || it.kind === 'player';
+const isRoom = it => (it.kind === 'circle' || it.kind === 'poly') && it.style === 'room';
+function itemName(it) {
+  if (it.kind === 'player') return 'Player';
   if (it.kind === 'enemy') return typeOf(it.type).name;
   const sq = Math.abs(it.w - it.h) < 0.01;
-  if (it.kind === 'circle') return sq ? 'Circle' : 'Ellipse';
-  if (it.sides === 4 && !sq) return 'Rectangle';
-  return POLY_NAMES[it.sides];
+  const base = it.kind === 'circle' ? (sq ? 'Circle' : 'Ellipse') : (it.sides === 4 && !sq ? 'Rectangle' : POLY_NAMES[it.sides]);
+  return it.style === 'room' ? base + ' room' : base;
 }
 
 /* ---------- history ---------- */
 const serialize = () => JSON.stringify({ floors: map.floors, items: map.items, enemyTypes: map.enemyTypes, activeFloor: map.activeFloor });
 function restore(s) {
-  const o = JSON.parse(s);
-  Object.assign(map, o);
+  Object.assign(map, JSON.parse(s));
   if (!selected()) selectedId = null;
   if (tool.startsWith('enemy:') && !map.enemyTypes.some(t => 'enemy:' + t.id === tool)) tool = 'select';
 }
@@ -505,6 +582,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 $('#status').addEventListener('click', () => {
   const st = $('#status').dataset.state;
   if (st === 'err') toast('This browser is blocking storage, so nothing is being kept. Save a backup file from the Maps menu.');
+  else if (map.sample) toast('This is the example map. It saves as your own map as soon as you change something.');
   else if (Store.cloud) toast('Maps save to your Claude account as you work, so they are there whenever you open this page.');
   else toast('Maps save in this browser only. Save a backup file from the Maps menu now and then.');
 });
@@ -524,6 +602,12 @@ function unitPoly(n) {
 const localPts = it => unitPoly(it.sides).map(([u, v]) => [u * it.w, v * it.h]);
 function toLocal(it, x, y) { const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a), dx = x - it.x, dy = y - it.y; return [dx * c + dy * s, -dx * s + dy * c]; }
 function toWorld(it, lx, ly) { const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a); return [it.x + lx * c - ly * s, it.y + lx * s + ly * c]; }
+function worldRing(it) {
+  let pts;
+  if (it.kind === 'circle') { pts = []; for (let k = 0; k < 48; k++) { const a = 2 * Math.PI * k / 48; pts.push([Math.cos(a) * it.w / 2, Math.sin(a) * it.h / 2]); } }
+  else pts = localPts(it);
+  return pts.map(([x, y]) => toWorld(it, x, y).map(round4));
+}
 const w2s = (R, x, y) => [(x - R.cx) * R.s + R.W / 2, (y - R.cy) * R.s + R.H / 2];
 const s2w = (R, x, y) => [(x - R.W / 2) / R.s + R.cx, (y - R.H / 2) / R.s + R.cy];
 function pointInPoly(x, y, pts) {
@@ -539,7 +623,7 @@ function distSeg(px, py, [ax, ay], [bx, by]) {
   const t = L ? clamp(((px - ax) * dx + (py - ay) * dy) / L, 0, 1) : 0;
   return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
-const enemyPx = R => Math.max(ENEMY_R * R.s, 8);
+const markerPx = R => Math.max(MARKER_R * R.s, 8);
 function hitShape(it, x, y, pad) {
   const [lx, ly] = toLocal(it, x, y);
   if (it.kind === 'circle') { const a = it.w / 2 + pad, b = it.h / 2 + pad; return (lx * lx) / (a * a) + (ly * ly) / (b * b) <= 1; }
@@ -547,19 +631,26 @@ function hitShape(it, x, y, pad) {
   if (pointInPoly(lx, ly, pts)) return true;
   return pts.some((p, i) => distSeg(lx, ly, p, pts[(i + 1) % pts.length]) <= pad);
 }
+// markers first, then solid shapes, then rooms; topmost wins inside each layer
 function hitItem(x, y) {
   const list = map.items.filter(i => i.floor === map.activeFloor), pad = 10 / view.s;
-  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (it.kind === 'enemy' && Math.hypot(x - it.x, y - it.y) <= enemyPx(view) / view.s + pad) return it; }
-  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (it.kind !== 'enemy' && hitShape(it, x, y, pad)) return it; }
+  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (isMarker(it) && Math.hypot(x - it.x, y - it.y) <= markerPx(view) / view.s + pad) return it; }
+  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (!isMarker(it) && !isRoom(it) && hitShape(it, x, y, pad)) return it; }
+  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (isRoom(it) && hitShape(it, x, y, pad)) return it; }
   return null;
 }
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 function handles(R, it) {
+  if (it.kind === 'player') {
+    const [sx, sy] = w2s(R, it.x, it.y), r = markerPx(R), a = rad(it.rot), d = r * 1.8 + 22;
+    return { corners: [], top: { x: sx + Math.sin(a) * r * 1.8, y: sy - Math.cos(a) * r * 1.8 }, rot: { x: sx + Math.sin(a) * d, y: sy - Math.cos(a) * d } };
+  }
   const corners = CORNERS.map(([sx, sy]) => { const [wx, wy] = toWorld(it, sx * it.w / 2, sy * it.h / 2); const [x, y] = w2s(R, wx, wy); return { x, y, sx, sy }; });
   const [tx, ty] = toWorld(it, 0, -it.h / 2), [mx, my] = w2s(R, tx, ty), a = rad(it.rot);
   return { corners, top: { x: mx, y: my }, rot: { x: mx + Math.sin(a) * 34, y: my - Math.cos(a) * 34 } };
 }
 function hitHandle(it, p) {
+  if (it.kind === 'enemy') return null;
   const H = handles(view, it), near = q => Math.hypot(q.x - p.x, q.y - p.y) <= 22;
   if (near(H.rot)) return { type: 'rotate' };
   for (const c of H.corners) if (near(c)) {
@@ -572,16 +663,63 @@ function itemsBounds(items) {
   if (!items.length) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const it of items) {
-    const r = it.kind === 'enemy' ? ENEMY_R : Math.hypot(it.w, it.h) / 2;
+    const r = isMarker(it) ? MARKER_R * 2 : Math.hypot(it.w, it.h) / 2;
     x0 = Math.min(x0, it.x - r); y0 = Math.min(y0, it.y - r); x1 = Math.max(x1, it.x + r); y1 = Math.max(y1, it.y + r);
   }
   return { x0, y0, x1, y1 };
 }
 
+/* ---------- rooms: overlapping room shapes join; walls between them dissolve or stay ---------- */
+const PC = window.polygonClipping || null;
+const roomCache = new Map();
+function ringBox(r) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of r) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return { x0, y0, x1, y1 }; }
+const boxesTouch = (a, b) => a.x0 <= b.x1 + 1e-3 && b.x0 <= a.x1 + 1e-3 && a.y0 <= b.y1 + 1e-3 && b.y0 <= a.y1 + 1e-3;
+function roomGroups(floorId) {
+  const rooms = map.items.filter(i => i.floor === floorId && isRoom(i));
+  const key = rooms.map(r => [r.id, r.kind, r.x, r.y, r.w, r.h, r.rot, r.sides, r.walls, r.color].join(',')).join(';');
+  const hit = roomCache.get(floorId);
+  if (hit && hit.key === key) return hit.groups;
+  const polys = rooms.map(r => [worldRing(r)]);
+  const boxes = polys.map(p => ringBox(p[0]));
+  const parent = rooms.map((_, i) => i);
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  if (PC) for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+    if (find(i) === find(j) || !boxesTouch(boxes[i], boxes[j])) continue;
+    try { if (PC.union(polys[i], polys[j]).length === 1) parent[find(j)] = find(i); } catch {}
+  }
+  const byRoot = new Map();
+  rooms.forEach((r, i) => { const k = find(i); if (!byRoot.has(k)) byRoot.set(k, []); byRoot.get(k).push(i); });
+  const groups = [];
+  for (const idx of byRoot.values()) {
+    const members = idx.map(i => rooms[i]), mp = idx.map(i => polys[i]);
+    const mode = members[0].walls === 'divide' ? 'divide' : 'merge';
+    const g = { ids: new Set(members.map(m => m.id)), size: members.length, mode, fills: [], walls: [] };
+    try {
+      if (members.length === 1) { g.fills.push({ color: members[0].color, mp: [mp[0]] }); g.walls = [mp[0]]; }
+      else if (mode === 'merge') { members.forEach((m, k) => g.fills.push({ color: m.color, mp: [mp[k]] })); g.walls = PC.union(...mp); }
+      else {
+        // each room keeps what later rooms don't cover; the later room owns the overlap, so there is one dividing wall
+        members.forEach((m, k) => {
+          const later = mp.slice(k + 1);
+          const region = later.length ? PC.difference(mp[k], ...later) : [mp[k]];
+          g.fills.push({ color: m.color, mp: region });
+          g.walls.push(...region);
+        });
+      }
+    } catch {
+      g.fills = members.map((m, k) => ({ color: m.color, mp: [mp[k]] })); g.walls = mp;
+    }
+    groups.push(g);
+  }
+  roomCache.set(floorId, { key, groups });
+  return groups;
+}
+const groupOf = it => isRoom(it) ? roomGroups(it.floor).find(g => g.ids.has(it.id)) : null;
+
 /* ---------- drawing ---------- */
 function readTheme() {
   const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
-  T = { gridBg: g('--grid-bg'), minor: g('--grid-minor'), major: g('--grid-major'), accent: g('--accent'), surface: g('--surface'),
+  T = { gridBg: g('--grid-bg'), minor: g('--grid-minor'), major: g('--grid-major'), accent: g('--accent'), surface: g('--surface'), wall: g('--wall'),
     fg: g('--fg'), muted: g('--muted'), ring: g('--enemy-ring'), dark: g('--is-dark') === '1', display: g('--font-display'), mono: g('--font-mono') };
   requestDraw();
 }
@@ -593,17 +731,18 @@ function draw() {
   const minor = drawScene(ctx, view, true);
   $('#scaletext').textContent = `= ${minor} m`;
 }
+const gridStep = s => [1, 5, 25, 125].find(v => v * s >= 7) || 125;
 function drawScene(c, R, withSelection) {
   c.fillStyle = T.gridBg; c.fillRect(0, 0, R.W, R.H);
   const minor = drawGrid(c, R);
   const fi = floorIndex();
-  if (showBelow && fi > 0) { c.save(); c.globalAlpha = 0.2; drawItems(c, R, map.floors[fi - 1].id); c.restore(); }
-  drawItems(c, R, map.activeFloor);
+  if (settings.below && fi > 0) { c.save(); c.globalAlpha = 0.2; drawFloor(c, R, map.floors[fi - 1].id); c.restore(); }
+  drawFloor(c, R, map.activeFloor);
   if (withSelection) drawSelection(c, R);
   return minor;
 }
 function drawGrid(c, R) {
-  const minor = [1, 5, 25, 125].find(s => s * R.s >= 7) || 125, major = minor * 5;
+  const minor = gridStep(R.s), major = minor * 5;
   const x0 = R.cx - R.W / 2 / R.s, x1 = R.cx + R.W / 2 / R.s, y0 = R.cy - R.H / 2 / R.s, y1 = R.cy + R.H / 2 / R.s;
   const lines = (step, color) => {
     c.beginPath();
@@ -614,10 +753,30 @@ function drawGrid(c, R) {
   lines(minor, T.minor); lines(major, T.major);
   return minor;
 }
-function drawItems(c, R, floorId) {
+function drawFloor(c, R, floorId) {
+  drawRooms(c, R, floorId);
   const list = map.items.filter(i => i.floor === floorId);
-  for (const it of list) if (it.kind !== 'enemy') drawShape(c, R, it);
+  for (const it of list) if (!isMarker(it) && !isRoom(it)) drawShape(c, R, it);
   for (const it of list) if (it.kind === 'enemy') drawEnemy(c, R, it);
+  for (const it of list) if (it.kind === 'player') drawPlayer(c, R, it);
+}
+function traceMulti(c, R, mp) {
+  for (const poly of mp) for (const ring of poly) {
+    ring.forEach(([x, y], k) => { const [sx, sy] = w2s(R, x, y); k ? c.lineTo(sx, sy) : c.moveTo(sx, sy); });
+    c.closePath();
+  }
+}
+function drawRooms(c, R, floorId) {
+  const groups = roomGroups(floorId);
+  for (const g of groups) for (const f of g.fills) {
+    c.beginPath(); traceMulti(c, R, f.mp);
+    c.fillStyle = T.dark ? mix(f.color, T.gridBg, 0.55) : mix(f.color, '#ffffff', 0.6);
+    c.fill('evenodd');
+  }
+  c.save();
+  c.lineWidth = Math.max(2, WALL * R.s); c.lineJoin = 'miter'; c.miterLimit = 3; c.strokeStyle = T.wall;
+  for (const g of groups) { c.beginPath(); traceMulti(c, R, g.walls); c.stroke(); }
+  c.restore();
 }
 function shapePath(c, R, it) {
   c.beginPath();
@@ -632,15 +791,26 @@ function drawShape(c, R, it) {
   c.lineWidth = 1.5; c.strokeStyle = T.dark ? mix(it.color, '#ffffff', 0.35) : mix(it.color, '#000000', 0.35); c.stroke();
   c.restore();
 }
+function markerLetter(c, ch, color, x, y, r) {
+  if (r < 9) return;
+  c.fillStyle = textOn(color); c.font = `600 ${Math.round(r * 1.05)}px ${T.display}`;
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ch, x, y + 1);
+}
 function drawEnemy(c, R, it) {
-  const t = typeOf(it.type), [sx, sy] = w2s(R, it.x, it.y), r = enemyPx(R);
+  const t = typeOf(it.type), [sx, sy] = w2s(R, it.x, it.y), r = markerPx(R);
   c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2);
   c.fillStyle = t.color; c.fill();
   c.lineWidth = 2; c.strokeStyle = T.ring; c.stroke();
-  if (r >= 9) {
-    c.fillStyle = textOn(t.color); c.font = `600 ${Math.round(r * 1.05)}px ${T.display}`;
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText((t.name.trim()[0] || '?').toUpperCase(), sx, sy + 1);
-  }
+  markerLetter(c, (t.name.trim()[0] || '?').toUpperCase(), t.color, sx, sy, r);
+}
+function drawPlayer(c, R, it) {
+  const [sx, sy] = w2s(R, it.x, it.y), r = markerPx(R), sp = Math.PI * 0.3;
+  c.save(); c.translate(sx, sy); c.rotate(rad(it.rot));
+  c.beginPath(); c.moveTo(0, -r * 1.8); c.arc(0, 0, r, -Math.PI / 2 + sp, -Math.PI / 2 - sp); c.closePath();
+  c.fillStyle = PLAYER_COLOR; c.fill();
+  c.lineWidth = 2; c.lineJoin = 'round'; c.strokeStyle = T.ring; c.stroke();
+  c.restore();
+  markerLetter(c, 'P', PLAYER_COLOR, sx, sy, r);
 }
 function dot(c, x, y, filled) {
   c.beginPath(); c.arc(x, y, filled ? 8 : 7, 0, Math.PI * 2);
@@ -651,9 +821,15 @@ function drawSelection(c, R) {
   const it = selected(); if (!it) return;
   c.save();
   c.strokeStyle = T.accent; c.lineWidth = 2;
-  if (it.kind === 'enemy') {
-    const [sx, sy] = w2s(R, it.x, it.y);
-    c.beginPath(); c.arc(sx, sy, enemyPx(R) + 5, 0, Math.PI * 2); c.stroke();
+  const [cx, cy] = w2s(R, it.x, it.y);
+  if (isMarker(it)) {
+    c.beginPath(); c.arc(cx, cy, markerPx(R) + 5, 0, Math.PI * 2); c.stroke();
+    if (it.kind === 'player') {
+      const H = handles(R, it);
+      c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
+      dot(c, H.rot.x, H.rot.y, true);
+      if (G && G.type === 'rotate') pillLabel(c, R, `${Math.round(it.rot)}°`, cx, cy + markerPx(R) + 12);
+    }
     c.restore(); return;
   }
   const H = handles(R, it);
@@ -662,15 +838,17 @@ function drawSelection(c, R) {
   c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
   H.corners.forEach(p => dot(c, p.x, p.y, false));
   dot(c, H.rot.x, H.rot.y, true);
-  // live measurement under the shape
   const label = G && G.type === 'rotate' ? `${Math.round(it.rot)}°` : dimsText(it);
-  const lowest = Math.max(...H.corners.map(p => p.y)), [cx] = w2s(R, it.x, it.y);
-  c.font = `500 12px ${T.mono}`;
-  const w = c.measureText(label).width + 14, y = Math.min(lowest + 12, R.H - 28);
-  c.fillStyle = T.surface; c.strokeStyle = T.accent; c.lineWidth = 1;
-  c.beginPath(); c.roundRect ? c.roundRect(cx - w / 2, y, w, 22, 6) : c.rect(cx - w / 2, y, w, 22); c.fill(); c.stroke();
-  c.fillStyle = T.fg; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, cx, y + 11.5);
+  pillLabel(c, R, label, cx, Math.max(...H.corners.map(p => p.y)) + 12);
   c.restore();
+}
+function pillLabel(c, R, label, x, y) {
+  c.font = `500 12px ${T.mono}`;
+  const w = c.measureText(label).width + 14;
+  y = Math.min(y, R.H - 28);
+  c.fillStyle = T.surface; c.strokeStyle = T.accent; c.lineWidth = 1;
+  c.beginPath(); c.roundRect ? c.roundRect(x - w / 2, y, w, 22, 6) : c.rect(x - w / 2, y, w, 22); c.fill(); c.stroke();
+  c.fillStyle = T.fg; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, x, y + 11.5);
 }
 function dimsText(it) {
   if (it.kind === 'circle' && Math.abs(it.w - it.h) < 0.01) return `Ø ${fmt(it.w)} m`;
@@ -707,8 +885,9 @@ let G = null;
 function evPos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 function cancelItemGesture() {
   if (G && G.pre && G.changed) restore(G.pre);
-  G = null; syncPanel();
+  G = null; syncBar();
 }
+function select(id) { if (selectedId !== id) { selectedId = id; livePre = null; renderBar(); } requestDraw(); }
 canvas.addEventListener('pointerdown', e => {
   try { canvas.setPointerCapture(e.pointerId); } catch {}
   const p = evPos(e);
@@ -723,17 +902,18 @@ canvas.addEventListener('pointerdown', e => {
   const [wx, wy] = s2w(view, p.x, p.y);
   if (tool !== 'select') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
   const sel = selected();
-  if (sel && sel.kind !== 'enemy') {
+  if (sel) {
     const h = hitHandle(sel, p);
     if (h) { G = { ...h, id: sel.id, pre: serialize(), start: p, changed: false }; return; }
   }
   const hit = hitItem(wx, wy);
-  if (hit) {
-    if (selectedId !== hit.id) { selectedId = hit.id; livePre = null; renderPanel(); }
+  // a room has to be selected before it can be dragged, so a finger inside a big room still pans the map
+  if (hit && (!isRoom(hit) || hit.id === selectedId)) {
+    select(hit.id);
     G = { type: 'move', id: hit.id, pre: serialize(), ox: wx - hit.x, oy: wy - hit.y, start: p, changed: false };
-    requestDraw(); return;
+    return;
   }
-  G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false };
+  G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false, tapSelect: hit ? hit.id : null };
 });
 canvas.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
@@ -759,19 +939,19 @@ canvas.addEventListener('pointermove', e => {
   if (G.type === 'move') {
     if (!G.changed && dist < 5) return;
     let nx = wx - G.ox, ny = wy - G.oy;
-    if (snap) { nx = snapTo(nx, SNAP.pos); ny = snapTo(ny, SNAP.pos); }
+    if (settings.snap) { nx = snapTo(nx, settings.step); ny = snapTo(ny, settings.step); }
     if (nx !== it.x || ny !== it.y) { it.x = round2(nx); it.y = round2(ny); G.changed = true; }
   } else if (G.type === 'resize') {
-    const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a), dx = wx - G.ax, dy = wy - G.ay;
+    const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a), dx = wx - G.ax, dy = wy - G.ay, st = settings.step;
     const lx = (dx * c + dy * s) * G.sx, ly = (-dx * s + dy * c) * G.sy;
     let w, h;
     if (it.lock) {
       const k = Math.max(MIN_SIZE / Math.min(G.w0, G.h0), (lx / G.w0 + ly / G.h0) / 2);
       w = G.w0 * k; h = G.h0 * k;
-      if (snap) { const f = Math.max(SNAP.size, snapTo(w, SNAP.size)) / w; w *= f; h *= f; }
+      if (settings.snap) { const f = Math.max(st, snapTo(w, st)) / w; w *= f; h *= f; }
     } else {
       w = Math.max(MIN_SIZE, lx); h = Math.max(MIN_SIZE, ly);
-      if (snap) { w = Math.max(SNAP.size, snapTo(w, SNAP.size)); h = Math.max(SNAP.size, snapTo(h, SNAP.size)); }
+      if (settings.snap) { w = Math.max(st, snapTo(w, st)); h = Math.max(st, snapTo(h, st)); }
     }
     w = round2(w); h = round2(h);
     const hx = G.sx * w / 2, hy = G.sy * h / 2;
@@ -779,11 +959,11 @@ canvas.addEventListener('pointermove', e => {
     G.changed = true;
   } else if (G.type === 'rotate') {
     let ang = deg(Math.atan2(wy - it.y, wx - it.x)) + 90;
-    ang = snap ? snapTo(ang, SNAP.rot) : Math.round(ang);
-    it.rot = ((ang % 360) + 360) % 360;
+    ang = settings.snap ? snapTo(ang, settings.rotStep) : Math.round(ang);
+    it.rot = norm360(ang);
     G.changed = true;
   }
-  requestDraw(); syncPanel();
+  requestDraw(); syncBar();
 });
 function endPointer(e) {
   if (!pointers.has(e.pointerId)) return;
@@ -798,9 +978,28 @@ function endPointer(e) {
   if (!g) return;
   const up = e.type === 'pointerup';
   if (g.type === 'place' && up) { const p = evPos(e); placeAt(...s2w(view, p.x, p.y)); }
-  else if (g.type === 'pan' && !g.moved && up) { if (selectedId) { selectedId = null; renderPanel(); } }
-  else if (g.pre && g.changed) { commit(g.pre); renderPanel(); }
+  else if (g.type === 'pan' && !g.moved && up) {
+    if (g.tapSelect) select(g.tapSelect);
+    else if (selectedId) { selectedId = null; renderBar(); }
+  }
+  else if (g.pre && g.changed) {
+    const it = byId(g.id);
+    const before = it && isRoom(it) && g.type === 'move' ? JSON.parse(g.pre).items.find(i => i.id === it.id) : null;
+    commit(g.pre); renderBar();
+    if (before) joinToast(it, before);
+  }
   requestDraw();
+}
+// announce a new join (not a nudge inside an existing group)
+function joinToast(it, before) {
+  const now = groupOf(it);
+  if (!now || now.size < 2) return;
+  const cur = { x: it.x, y: it.y };
+  it.x = before.x; it.y = before.y; roomCache.delete(it.floor);
+  const was = groupOf(it);
+  it.x = cur.x; it.y = cur.y; roomCache.delete(it.floor);
+  if (was && was.size >= now.size) return;
+  toast(now.mode === 'merge' ? 'Rooms joined into one space. Switch to separate rooms under More.' : 'Rooms joined with a dividing wall. Switch to one room under More.');
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
@@ -808,39 +1007,48 @@ canvas.addEventListener('wheel', e => { e.preventDefault(); const p = evPos(e); 
 
 /* ---------- placing things ---------- */
 function newShape(kind, x, y) {
-  const base = { id: uid(), floor: map.activeFloor, kind, x, y, rot: 0, color: map.lastColor, sides: map.lastSides };
-  return kind === 'circle' ? { ...base, w: 3, h: 3, lock: true } : { ...base, w: 4, h: 4, lock: false };
+  const room = settings.style === 'room';
+  const base = { id: uid(), floor: map.activeFloor, kind, x, y, rot: 0, color: map.lastColor, sides: map.lastSides, style: settings.style, walls: settings.join };
+  if (kind === 'circle') return { ...base, w: room ? 6 : 3, h: room ? 6 : 3, lock: true };
+  return { ...base, w: room ? 8 : 4, h: room ? 6 : 4, lock: false };
 }
+function snapPoint(x, y) { if (settings.snap) { x = snapTo(x, settings.step); y = snapTo(y, settings.step); } return [round2(x), round2(y)]; }
 function placeAt(x, y) {
-  if (snap) { x = snapTo(x, SNAP.pos); y = snapTo(y, SNAP.pos); }
-  x = round2(x); y = round2(y);
+  [x, y] = snapPoint(x, y);
   if (tool === 'circle' || tool === 'poly') {
     const it = newShape(tool, x, y);
     mutate(() => map.items.push(it));
     selectedId = it.id; livePre = null; setTool('select');
-  } else if (tool.startsWith('enemy:')) {
-    placeEnemy(tool.slice(6), x, y);
-  }
+  } else if (tool === 'player') placeMarker(PLAYER_TYPE, x, y);
+  else if (tool.startsWith('enemy:')) placeMarker(tool.slice(6), x, y);
 }
-function placeEnemy(type, x, y) {
-  if (snap) { x = snapTo(x, SNAP.pos); y = snapTo(y, SNAP.pos); }
-  mutate(() => map.items.push({ id: uid(), floor: map.activeFloor, kind: 'enemy', type, x: round2(x), y: round2(y) }));
+function placeMarker(type, x, y) {
+  [x, y] = snapPoint(x, y);
+  const it = type === PLAYER_TYPE
+    ? { id: uid(), floor: map.activeFloor, kind: 'player', x, y, rot: 0 }
+    : { id: uid(), floor: map.activeFloor, kind: 'enemy', type, x, y };
+  mutate(() => map.items.push(it));
 }
 function setTool(t) {
   tool = t;
-  if (t !== 'select' && selectedId) { selectedId = null; }
+  if (t !== 'select') selectedId = null;
   renderAll();
 }
 
-/* ---------- enemy tray (tap to arm, drag up to drop) ---------- */
+/* ---------- tray (tap to arm, drag up to drop) ---------- */
 const tray = $('#tray');
 let trayDrag = null, ghost = null;
-function showGhost(type, x, y) {
+function markerLook(type) {
+  if (type === PLAYER_TYPE) return { color: PLAYER_COLOR, ch: 'P', name: 'Player' };
   const t = typeOf(type);
+  return { color: t.color, ch: (t.name.trim()[0] || '?').toUpperCase(), name: t.name };
+}
+function showGhost(type, x, y) {
+  const l = markerLook(type);
   ghost = document.createElement('div');
   ghost.className = 'ghost';
-  ghost.style.background = t.color; ghost.style.color = textOn(t.color);
-  ghost.textContent = (t.name.trim()[0] || '?').toUpperCase();
+  ghost.style.background = l.color; ghost.style.color = textOn(l.color);
+  ghost.textContent = l.ch;
   document.body.appendChild(ghost);
   moveGhost(x, y);
 }
@@ -867,19 +1075,17 @@ window.addEventListener('pointerup', e => {
   const d = trayDrag;
   if (d.dragging) {
     const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - 44 - r.top;
-    if (x >= 0 && y >= 0 && x <= r.width && y <= r.height) {
-      placeEnemy(d.type, ...s2w(view, x, y));
-      toast(`${typeOf(d.type).name} placed on ${map.floors[floorIndex()].name}`);
-    }
+    if (x >= 0 && y >= 0 && x <= r.width && y <= r.height) placeMarker(d.type, ...s2w(view, x, y));
   } else if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) {
-    setTool(tool === 'enemy:' + d.type ? 'select' : 'enemy:' + d.type);
+    const t = d.type === PLAYER_TYPE ? 'player' : 'enemy:' + d.type;
+    setTool(tool === t ? 'select' : t);
   }
   endTrayDrag();
 });
 window.addEventListener('pointercancel', e => { if (trayDrag && e.pointerId === trayDrag.id) endTrayDrag(); });
 
 /* ---------- rendering UI ---------- */
-function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools(); renderPanel(); updateHint(); updateUndo(); requestDraw(); }
+function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools(); renderBar(); updateHint(); updateUndo(); requestDraw(); }
 function renderHeader() {
   $('#mapname').textContent = map.name;
   $('#sampletag').hidden = !map.sample;
@@ -893,119 +1099,118 @@ function renderFloors() {
   $('#floordown').disabled = fi <= 0;
 }
 function renderTray() {
-  tray.innerHTML = map.enemyTypes.map(t => {
-    const n = (t.name.trim()[0] || '?').toUpperCase();
-    return `<button class="chip" data-type="${esc(t.id)}" aria-pressed="${tool === 'enemy:' + t.id}"><i style="background:${t.color};color:${textOn(t.color)}">${esc(n)}</i>${esc(t.name)}</button>`;
-  }).join('');
+  const chip = (type, cls, pressed) => { const l = markerLook(type); return `<button class="chip${cls}" data-type="${esc(type)}" aria-pressed="${pressed}"><i style="background:${l.color};color:${textOn(l.color)}">${esc(l.ch)}</i>${esc(l.name)}</button>`; };
+  tray.innerHTML = chip(PLAYER_TYPE, ' player', tool === 'player') + map.enemyTypes.map(t => chip(t.id, '', tool === 'enemy:' + t.id)).join('');
 }
 function renderTools() {
   document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
-  $('#snapbtn').setAttribute('aria-pressed', String(snap));
+  $('#snapbtn').setAttribute('aria-pressed', String(settings.snap));
 }
 function updateHint() {
   const h = $('#hint');
   let text = '';
-  if (tool === 'circle') text = 'Tap the map to place a circle.';
-  else if (tool === 'poly') text = `Tap the map to place a ${POLY_NAMES[map.lastSides].toLowerCase()}.`;
+  const shapeWord = settings.style === 'room' ? ' room' : '';
+  if (tool === 'circle') text = `Tap the map to place a circle${shapeWord}.`;
+  else if (tool === 'poly') text = `Tap the map to place a ${POLY_NAMES[map.lastSides].toLowerCase()}${shapeWord}.`;
+  else if (tool === 'player') text = 'Tap the map to place players. Tap Player again to stop.';
   else if (tool.startsWith('enemy:')) { const t = typeOf(tool.slice(6)); text = `Tap the map to drop ${t.name} enemies. Tap ${t.name} again to stop.`; }
-  else if (!map.items.some(i => i.floor === map.activeFloor)) text = 'This floor is empty. Pick Circle or Polygon, or drag an enemy up onto the map.';
+  else if (!map.items.some(i => i.floor === map.activeFloor)) text = 'This floor is empty. Pick Circle or Polygon, or drag a player or enemy up onto the map.';
   h.textContent = text; h.hidden = !text;
 }
 
-/* ---------- properties panel ---------- */
-let panelKey = null;
-function renderPanel() {
+/* ---------- selection bar ---------- */
+let barKey = null;
+function renderBar() {
   const it = selected();
-  panel.hidden = !it;
-  if (!it) { panel.innerHTML = ''; panelKey = null; return; }
-  const key = it.id + ':' + it.kind + ':' + (it.kind === 'enemy' ? map.enemyTypes.map(t => t.id + t.name + t.color).join() : '');
-  if (key !== panelKey) { panel.innerHTML = it.kind === 'enemy' ? enemyPanel(it) : shapePanel(it); bindPanel(it); panelKey = key; }
-  syncPanel();
+  bar.hidden = !it;
+  if (!it) { bar.innerHTML = ''; barKey = null; return; }
+  const g = groupOf(it);
+  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), it.kind === 'enemy' ? map.enemyTypes.map(t => t.id + t.name + t.color).join() : ''].join('|');
+  if (key !== barKey) { bar.innerHTML = barHTML(it, g); bindBar(it); barKey = key; }
+  syncBar();
 }
-const headHTML = (extra) => `
-  <div class="panel-head">
-    <div class="panel-title"><strong data-b="name"></strong><span class="dims mono" data-b="dims"></span></div>
-    <div class="panel-actions">
-      ${extra}
-      <button data-act="dup" aria-label="Duplicate">${ic('dup')}</button>
-      <button data-act="del" class="danger" aria-label="Delete">${ic('del')}</button>
-      <button data-act="close" aria-label="Close">${ic('close')}</button>
-    </div>
+function barHTML(it, g) {
+  const row = `
+  <div class="bar-row">
+    <div class="bar-title"><strong data-b="name"></strong><span data-b="dims"></span></div>
+    ${it.kind === 'poly' ? `<div class="ministep" aria-label="Sides"><button data-sides="-1" aria-label="Fewer sides">−</button><span data-b="sidesn"></span><button data-sides="1" aria-label="More sides">+</button></div>` : ''}
+    ${isMarker(it) ? `<button data-act="dup" aria-label="Duplicate">${ic('dup')}</button>` : ''}
+    <button data-act="del" class="danger" aria-label="Delete">${ic('del')}</button>
+    <button data-act="more" aria-label="More settings" aria-expanded="${barMore}">${ic('more')}</button>
+    <button data-act="close" aria-label="Close">${ic('close')}</button>
   </div>`;
-const posRow = `
-  <div class="prow"><span class="lbl">Position</span><div class="ctrl">
+  if (!barMore) return row;
+  const pos = `<div class="prow"><span class="lbl">Position</span><div class="ctrl">
     <label class="num"><span>X</span><input id="p-x" type="number" inputmode="decimal" step="0.5"></label>
     <label class="num"><span>Y</span><input id="p-y" type="number" inputmode="decimal" step="0.5"></label>
-    <span class="muted mono" style="font-size:12px">m</span>
   </div></div>`;
-function shapePanel(it) {
-  return headHTML(`<button data-act="back" aria-label="Send to back">${ic('back')}</button><button data-act="front" aria-label="Bring to front">${ic('front')}</button>`) + `
-  <div class="panel-body">
-    <div class="prow"><span class="lbl">Shape</span><div class="ctrl"><div class="seg">
-      <button data-kind="circle">Circle</button><button data-kind="poly">Polygon</button>
-    </div></div></div>
-    ${it.kind === 'poly' ? `<div class="prow"><label class="lbl" for="p-sides">Sides</label><div class="ctrl">
-      <input type="range" id="p-sides" min="3" max="${MAX_SIDES}" step="1"><output data-b="sides"></output>
-    </div></div>` : ''}
+  let more;
+  if (it.kind === 'enemy') {
+    more = `<div class="prow"><span class="lbl">Type</span><div class="ctrl">
+      ${map.enemyTypes.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
+    </div></div>` + pos;
+  } else if (it.kind === 'player') {
+    more = `<div class="prow"><label class="lbl" for="p-rot">Facing</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>` + pos;
+  } else {
+    const room = it.style === 'room';
+    more = `
+    <div class="prow"><span class="lbl">Style</span><div class="ctrl"><div class="seg"><button data-style="room">Room</button><button data-style="solid">Solid</button></div></div></div>
+    ${room ? `<div class="prow"><span class="lbl">Walls</span><div class="ctrl">${g && g.size > 1
+      ? '<div class="seg"><button data-walls="merge">One room</button><button data-walls="divide">Separate rooms</button></div>'
+      : '<span class="note">Drag this room into another room to join them.</span>'}</div></div>` : ''}
+    <div class="prow"><span class="lbl">Shape</span><div class="ctrl"><div class="seg"><button data-kind="circle">Circle</button><button data-kind="poly">Polygon</button></div></div></div>
+    ${it.kind === 'poly' ? `<div class="prow"><label class="lbl" for="p-sides">Sides</label><div class="ctrl"><input type="range" id="p-sides" min="3" max="${MAX_SIDES}" step="1"><output data-b="sides"></output></div></div>` : ''}
     <div class="prow"><span class="lbl">Size</span><div class="ctrl">
       <div class="stepper"><span>W</span><button data-step="w:-1" aria-label="Narrower">−</button><input id="p-w" type="number" inputmode="decimal" step="0.5" aria-label="Width in metres"><button data-step="w:1" aria-label="Wider">+</button></div>
       <div class="stepper"><span>H</span><button data-step="h:-1" aria-label="Shorter">−</button><input id="p-h" type="number" inputmode="decimal" step="0.5" aria-label="Height in metres"><button data-step="h:1" aria-label="Taller">+</button></div>
       <button class="lockbtn" data-act="lock" aria-label="Keep proportions">${ic('lock')}</button>
     </div></div>
-    <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl">
-      <input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output>
-    </div></div>
+    <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
     <div class="prow"><span class="lbl">Color</span><div class="ctrl"><div class="swatches">
       ${SHAPE_COLORS.map(c => `<button class="sw" data-color="${c.hex}" style="background:${c.hex}" aria-label="${c.name}" title="${c.name}"></button>`).join('')}
     </div></div></div>
-    ${posRow}
-  </div>`;
-}
-function enemyPanel(it) {
-  return headHTML('') + `
-  <div class="panel-body">
-    <div class="prow"><span class="lbl">Type</span><div class="ctrl">
-      ${map.enemyTypes.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
-    </div></div>
-    ${posRow}
-  </div>`;
+    ${pos}
+    <div class="prow"><span class="lbl">Actions</span><div class="ctrl">
+      <button class="smallbtn" data-act="dup">${ic('dup')}Duplicate</button>
+      <button class="smallbtn" data-act="back">${ic('back')}To back</button><button class="smallbtn" data-act="front">${ic('front')}To front</button>
+    </div></div>`;
+  }
+  return row + `<div class="bar-more">${more}</div>`;
 }
 function liveInput(el, apply) {
-  el.addEventListener('input', () => { if (livePre === null) livePre = serialize(); apply(+el.value); requestDraw(); syncPanel(); });
+  el.addEventListener('input', () => { if (livePre === null) livePre = serialize(); apply(+el.value); requestDraw(); syncBar(); });
   el.addEventListener('change', () => { if (livePre !== null) { const pre = livePre; livePre = null; if (pre !== serialize()) commit(pre); renderAll(); } });
 }
-function bindPanel(it) {
+function bindBar(it) {
   const id = it.id, cur = () => byId(id);
-  panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
-    const x = cur(); if (!x) return;
+  const on = (sel, fn) => bar.querySelectorAll(sel).forEach(b => b.addEventListener('click', () => { const x = cur(); if (x) fn(x, b); }));
+  on('[data-act]', (x, b) => {
     const act = b.dataset.act;
     if (act === 'close') { selectedId = null; renderAll(); }
+    else if (act === 'more') { barMore = !barMore; renderBar(); }
     else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
     else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; mutate(() => map.items.push(c)); selectedId = c.id; renderAll(); }
     else if (act === 'front' || act === 'back') mutate(() => { map.items = map.items.filter(i => i.id !== id); act === 'front' ? map.items.push(x) : map.items.unshift(x); });
     else if (act === 'lock') mutate(() => { x.lock = !x.lock; });
-  }));
-  panel.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
-    const x = cur(); if (!x || x.kind === b.dataset.kind) return;
-    mutate(() => { x.kind = b.dataset.kind; if (!x.sides) x.sides = map.lastSides; });
-  }));
-  panel.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => {
-    const x = cur(); if (!x) return;
-    map.lastColor = b.dataset.color; mutate(() => { x.color = b.dataset.color; });
-  }));
-  panel.querySelectorAll('[data-settype]').forEach(b => b.addEventListener('click', () => {
-    const x = cur(); if (!x) return; mutate(() => { x.type = b.dataset.settype; });
-  }));
-  panel.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
-    const x = cur(); if (!x) return;
-    const [dim, dir] = b.dataset.step.split(':');
-    mutate(() => setSize(x, dim, round2(x[dim] + +dir * SNAP.size)));
-  }));
-  const sides = panel.querySelector('#p-sides');
+  });
+  on('[data-sides]', (x, b) => {
+    const v = clamp(x.sides + +b.dataset.sides, 3, MAX_SIDES);
+    if (v !== x.sides) { map.lastSides = v; mutate(() => { x.sides = v; }); }
+  });
+  on('[data-kind]', (x, b) => { if (x.kind !== b.dataset.kind) mutate(() => { x.kind = b.dataset.kind; }); });
+  on('[data-style]', (x, b) => { if (x.style !== b.dataset.style) mutate(() => { x.style = b.dataset.style; }); });
+  on('[data-walls]', (x, b) => {
+    const g = groupOf(x), v = b.dataset.walls;
+    if (g) mutate(() => map.items.forEach(i => { if (g.ids.has(i.id)) i.walls = v; }));
+  });
+  on('[data-color]', (x, b) => { map.lastColor = b.dataset.color; mutate(() => { x.color = b.dataset.color; }); });
+  on('[data-settype]', (x, b) => mutate(() => { x.type = b.dataset.settype; }));
+  on('[data-step]', (x, b) => { const [dim, dir] = b.dataset.step.split(':'); mutate(() => setSize(x, dim, round2(x[dim] + +dir * settings.step))); });
+  const sides = bar.querySelector('#p-sides');
   if (sides) liveInput(sides, v => { const x = cur(); if (x) { x.sides = v; map.lastSides = v; } });
-  const rot = panel.querySelector('#p-rot');
-  if (rot) liveInput(rot, v => { const x = cur(); if (x) x.rot = snap ? snapTo(v, SNAP.rot) % 360 : v; });
-  const numIn = (sel, apply) => { const el = panel.querySelector(sel); if (el) el.addEventListener('change', () => { const v = parseFloat(el.value); const x = cur(); if (x && Number.isFinite(v)) mutate(() => apply(x, round2(v))); else syncPanel(); }); };
+  const rot = bar.querySelector('#p-rot');
+  if (rot) liveInput(rot, v => { const x = cur(); if (x) x.rot = settings.snap ? norm360(snapTo(v, settings.rotStep)) : v; });
+  const numIn = (sel, apply) => { const el = bar.querySelector(sel); if (el) el.addEventListener('change', () => { const v = parseFloat(el.value); const x = cur(); if (x && Number.isFinite(v)) mutate(() => apply(x, round2(v))); else syncBar(); }); };
   numIn('#p-w', (x, v) => setSize(x, 'w', v));
   numIn('#p-h', (x, v) => setSize(x, 'h', v));
   numIn('#p-x', (x, v) => { x.x = v; });
@@ -1016,24 +1221,26 @@ function setSize(x, dim, v) {
   if (x.lock) { const k = v / x[dim]; x.w = round2(x.w * k); x.h = round2(x.h * k); }
   else x[dim] = v;
 }
-function syncPanel() {
-  const it = selected(); if (!it || panel.hidden) return;
-  const set = (sel, v) => { const el = panel.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
-  const txt = (b, v) => { const el = panel.querySelector(`[data-b="${b}"]`); if (el) el.textContent = v; };
-  txt('name', shapeName(it));
+function syncBar() {
+  const it = selected(); if (!it || bar.hidden) return;
+  const set = (sel, v) => { const el = bar.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
+  const txt = (b, v) => { const el = bar.querySelector(`[data-b="${b}"]`); if (el) el.textContent = v; };
+  const pressed = (attr, val) => bar.querySelectorAll(`[${attr}]`).forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === val)));
+  txt('name', itemName(it));
   set('#p-x', round2(it.x)); set('#p-y', round2(it.y));
-  if (it.kind === 'enemy') {
-    txt('dims', map.floors[floorIndex()].name);
-    panel.querySelectorAll('[data-settype]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.settype === it.type)));
-    return;
-  }
-  txt('dims', dimsText(it));
+  const floor = map.floors[floorIndex()].name;
+  if (it.kind === 'enemy') { txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-settype', it.type); return; }
+  if (it.kind === 'player') { txt('dims', `${floor} · facing ${Math.round(it.rot)}°`); set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`); return; }
+  const g = groupOf(it);
+  txt('dims', dimsText(it).replace(/\.0\b/g, '') + (g && g.size > 1 ? ' · joined' : ''));
+  txt('sidesn', it.sides);
   set('#p-sides', it.sides); txt('sides', `${it.sides} · ${POLY_NAMES[it.sides]}`);
   set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`);
   set('#p-w', round2(it.w)); set('#p-h', round2(it.h));
-  panel.querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === it.kind)));
-  panel.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === it.color.toLowerCase())));
-  const lock = panel.querySelector('[data-act="lock"]'); if (lock) lock.setAttribute('aria-pressed', String(!!it.lock));
+  pressed('data-kind', it.kind); pressed('data-style', it.style);
+  if (g) pressed('data-walls', g.mode);
+  bar.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === it.color.toLowerCase())));
+  const lock = bar.querySelector('[data-act="lock"]'); if (lock) lock.setAttribute('aria-pressed', String(!!it.lock));
 }
 
 /* ---------- sheets ---------- */
@@ -1057,64 +1264,131 @@ function armButton(btn, label, onConfirm) {
   setTimeout(() => { if (btn.isConnected && btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = old; } }, 3500);
 }
 
+/* ---------- main menu ---------- */
+const menu = $('#menu');
+const menuOpen = () => !menu.hidden;
+function showMenu() {
+  flushSave();
+  selectedId = null; tool = 'select';
+  $('#menucontname').textContent = '· ' + map.name;
+  menu.hidden = false;
+  renderAll();
+}
+function hideMenu() { menu.hidden = true; if (!fitted && view.W) { fitted = true; fitView(); } requestDraw(); }
+$('#home').addEventListener('click', showMenu);
+$('#menucontinue').addEventListener('click', hideMenu);
+$('#menumaps').addEventListener('click', () => openSheet('Maps', b => buildMaps(b, true)));
+$('#menusettings').addEventListener('click', () => openSheet('Settings', buildSettings));
+$('#menunew').addEventListener('click', () => openSheet('New blank map', body => {
+  body.innerHTML = `<section>
+      <label class="eyebrow" for="n-name">Map name</label>
+      <input class="field" id="n-name" maxlength="80" value="Untitled map">
+      <div class="btnrow"><button class="btn primary" id="n-create">${ic('plus')}Create map</button></div>
+    </section>`;
+  const inp = body.querySelector('#n-name');
+  const go = async () => { await newMapNamed(inp.value.trim() || 'Untitled map'); closeSheet(); hideMenu(); };
+  body.querySelector('#n-create').addEventListener('click', go);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  inp.select();
+}));
+
+/* Settings */
+function buildSettings(body) {
+  const seg = (name, opts, val) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${name}" data-val="${v}" aria-pressed="${String(v) === String(val)}">${l}</button>`).join('')}</div>`;
+  body.innerHTML = `
+    <section>
+      <h3>Snapping</h3>
+      <label class="toggle"><input type="checkbox" id="s-snap"${settings.snap ? ' checked' : ''}>Snap to the grid while moving and resizing</label>
+      <div class="setrow"><span>Grid step</span>${seg('step', [[0.25, '0.25 m'], [0.5, '0.5 m'], [1, '1 m']], settings.step)}</div>
+      <div class="setrow"><span>Turn step</span>${seg('rotStep', [[5, '5°'], [15, '15°'], [45, '45°']], settings.rotStep)}</div>
+    </section>
+    <section>
+      <h3>New shapes</h3>
+      <div class="setrow"><span>Draw as</span>${seg('style', [['room', 'Room'], ['solid', 'Solid']], settings.style)}</div>
+      <p>Rooms are floor areas with walls around them. Solids are blocks like crates, pillars and cover.</p>
+      <div class="setrow"><span>When rooms join</span>${seg('join', [['merge', 'One room'], ['divide', 'Separate rooms']], settings.join)}</div>
+      <p>One room removes the walls between joined rooms. Separate rooms keeps a dividing wall. You can switch any joined group from its More panel.</p>
+    </section>
+    <section>
+      <h3>Floors</h3>
+      <label class="toggle"><input type="checkbox" id="s-below"${settings.below ? ' checked' : ''}>Show the floor below, faded</label>
+    </section>
+    <section>
+      <h3>Saving</h3>
+      <p>${Store.cloud ? 'Maps save to your Claude account as you work.' : 'Maps save in this browser. Save a backup file from Maps now and then.'} Light or dark follows your device.</p>
+    </section>`;
+  body.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.set, v = b.dataset.val;
+    settings[k] = (k === 'step' || k === 'rotStep') ? +v : v;
+    saveSettings(); refreshSheet(); renderAll();
+  }));
+  body.querySelector('#s-snap').addEventListener('change', e => { settings.snap = e.target.checked; saveSettings(); renderTools(); });
+  body.querySelector('#s-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
+}
+
 /* Maps */
 async function openMapById(id) {
   await flushSave();
   const m = await Store.load(id);
-  if (!m) { toast('That map could not be opened.'); return; }
+  if (!m) { toast('That map could not be opened.'); return false; }
   openMap(normalize(m));
+  return true;
 }
 function openMap(m) {
   map = m; history = []; future = []; livePre = null; selectedId = null; tool = 'select'; edits = 0;
-  LS.set('mm2.current', m.id);
+  roomCache.clear();
+  if (!m.sample) LS.set('mm2.current', m.id);
   fitted = !!view.W; fitView();
-  setStatus(Store.cloud ? 'Saved' : 'Saved on this device', 'ok');
+  setStatus(m.sample ? 'Example' : Store.cloud ? 'Saved' : 'Saved on this device', 'ok');
+  $('#menucontname').textContent = '· ' + m.name;
   renderAll();
 }
 async function newMapNamed(name) {
   await flushSave();
-  const m = blankMap(name);
-  openMap(m); await saveNow();
+  openMap(blankMap(name.slice(0, 80))); await saveNow();
 }
-function buildMaps(body) {
+function buildMaps(body, fromMenu) {
   const dlOk = !!Store.dl;
   body.innerHTML = `
-    <section style="border-top:0;padding-top:0">
+    ${fromMenu ? '' : `<section>
       <h3>Current map</h3>
       <input class="field" id="m-name" maxlength="80" aria-label="Map name" value="${esc(map.name)}">
       <div class="btnrow">
-        <button class="btn primary" data-m="new">${ic('plus')}New map</button>
+        <button class="btn primary" data-m="new">${ic('plus')}New blank</button>
         <button class="btn" data-m="dup">${ic('dup')}Duplicate</button>
       </div>
+    </section>`}
+    <section>
+      <h3>Your maps</h3>
+      <div class="list" id="m-list"><p>Loading…</p></div>
     </section>
     <section>
       <h3>Files</h3>
       <div class="btnrow">
-        ${dlOk ? `<button class="btn" data-m="png">${ic('image')}Save image of this floor</button><button class="btn" data-m="json">${ic('save')}Save backup file</button>` : ''}
+        ${dlOk && !fromMenu ? `<button class="btn" data-m="png">${ic('image')}Save image of this floor</button><button class="btn" data-m="json">${ic('save')}Save backup file</button>` : ''}
         <button class="btn" data-m="import">${ic('open')}Open backup file</button>
+        <button class="btn" data-m="example">Open example map</button>
       </div>
-      <p>${Store.cloud ? 'Maps save to your Claude account automatically. A backup file is a copy you can keep anywhere.' : 'Maps are saved in this browser only. Save a backup file now and then so a cleared browser can’t take them with it.'}${dlOk ? '' : ' Saving files isn’t available in this view.'}</p>
-    </section>
-    <section>
-      <h3>Your maps</h3>
-      <div class="list" id="m-list"><p>Loading…</p></div>
+      <p>${Store.cloud ? 'Maps save to your Claude account automatically. A backup file is a copy you can keep anywhere.' : 'Maps are saved in this browser only. Save a backup file now and then so a cleared browser can’t take them with it.'}</p>
     </section>`;
   const name = body.querySelector('#m-name');
-  name.addEventListener('change', () => { const v = name.value.trim(); if (v && v !== map.name) { map.name = v.slice(0, 80); markDirty(); renderHeader(); listMaps(body); } });
+  if (name) name.addEventListener('change', () => { const v = name.value.trim(); if (v && v !== map.name) { map.name = v.slice(0, 80); markDirty(); renderHeader(); listMaps(body); } });
   body.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', async () => {
     const a = b.dataset.m;
-    if (a === 'new') { await newMapNamed('New map'); closeSheet(); toast('New map created. Rename it from the Maps menu.'); }
+    if (a === 'new') { closeSheet(); $('#menunew').click(); }
     else if (a === 'dup') { await flushSave(); const c = normalize(clone(map)); c.id = uid(); c.name = (map.name + ' copy').slice(0, 80); delete c.sample; openMap(c); await saveNow(); refreshSheet(); toast('Duplicated. You are now editing the copy.'); }
     else if (a === 'png') exportPNG();
     else if (a === 'json') exportJSON();
     else if (a === 'import') $('#importfile').click();
+    else if (a === 'example') { await flushSave(); openMap(sampleMap()); closeSheet(); hideMenu(); }
   }));
   listMaps(body);
 }
 async function listMaps(body) {
   const list = await Store.listAll();
   const el = body.querySelector('#m-list'); if (!el) return;
-  if (!list.some(e => e.id === map.id)) list.unshift({ ...Store.meta(map), unsaved: true });
+  if (!map.sample && !list.some(e => e.id === map.id)) list.unshift(Store.meta(map));
+  if (!list.length) { el.innerHTML = '<p>No saved maps yet. Start one with New Blank.</p>'; return; }
   el.innerHTML = list.map(e => `
     <div class="lrow${e.id === map.id ? ' current' : ''}">
       <div class="grow"><button class="open" data-open="${esc(e.id)}">
@@ -1125,8 +1399,7 @@ async function listMaps(body) {
       <button class="btn danger" data-delmap="${esc(e.id)}" aria-label="Delete map">${ic('del')}</button>
     </div>`).join('');
   el.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', async () => {
-    if (b.dataset.open === map.id) { closeSheet(); return; }
-    await openMapById(b.dataset.open); closeSheet();
+    if (b.dataset.open === map.id || await openMapById(b.dataset.open)) { closeSheet(); hideMenu(); }
   }));
   el.querySelectorAll('[data-delmap]').forEach(b => b.addEventListener('click', () => armButton(b, 'Delete?', async () => {
     const id = b.dataset.delmap;
@@ -1134,12 +1407,12 @@ async function listMaps(body) {
     if (id === map.id) {
       clearTimeout(saveTimer); saveTimer = null;
       const rest = (await Store.listAll()).filter(e => e.id !== id);
-      if (rest.length) await openMapById(rest[0].id); else await newMapNamed('New map');
+      if (!rest.length || !(await openMapById(rest[0].id))) openMap(sampleMap());
     }
     refreshSheet();
   })));
 }
-$('#mapbtn').addEventListener('click', () => openSheet('Maps', buildMaps));
+$('#mapbtn').addEventListener('click', () => openSheet('Maps', b => buildMaps(b, false)));
 $('#importfile').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0]; e.target.value = '';
   if (!f) return;
@@ -1149,7 +1422,7 @@ $('#importfile').addEventListener('change', e => {
       const m = normalize(JSON.parse(r.result));
       await flushSave();
       m.id = uid(); delete m.sample; m.updated = Date.now();
-      openMap(m); await saveNow(); closeSheet();
+      openMap(m); await saveNow(); closeSheet(); hideMenu();
       toast(`Opened “${m.name}” from the backup file.`);
     } catch { toast('That file isn’t a map backup. Pick a .json file saved from this app.'); }
   };
@@ -1179,23 +1452,22 @@ function exportPNG() {
   const floor = map.floors[floorIndex()].name;
   x.fillText(`${map.name} — ${floor}`, 14, H + foot / 2);
   x.fillStyle = T.muted; x.font = `500 14px ${T.mono}`; x.textAlign = 'right';
-  const minor = [1, 5, 25, 125].find(v => v * s >= 7) || 125;
-  x.fillText(`1 square = ${minor} m`, W - 14, H + foot / 2);
+  x.fillText(`1 square = ${gridStep(s)} m`, W - 14, H + foot / 2);
   c.toBlob(blob => { if (blob) offerFile(`${slug(map.name)}-${slug(floor)}.png`, blob); else toast('The image couldn’t be made.'); }, 'image/png');
 }
 
 /* Floors */
-function switchFloor(id) { map.activeFloor = id; selectedId = null; livePre = null; renderAll(); LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
+function switchFloor(id) { map.activeFloor = id; selectedId = null; livePre = null; renderAll(); if (!map.sample) LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
 $('#floorup').addEventListener('click', () => { const i = floorIndex(); if (i < map.floors.length - 1) switchFloor(map.floors[i + 1].id); });
 $('#floordown').addEventListener('click', () => { const i = floorIndex(); if (i > 0) switchFloor(map.floors[i - 1].id); });
 $('#floorname').addEventListener('click', () => openSheet('Floors', buildFloors));
 function buildFloors(body) {
-  const rows = map.floors.map((f, i) => ({ f, i })).reverse();
+  const rows = [...map.floors].reverse();
   body.innerHTML = `
-    <section style="border-top:0;padding-top:0">
+    <section>
       <p>Top floor first. The floor below the one you are on shows faintly so you can line things up.</p>
       <div class="btnrow"><button class="btn" data-f="above">${ic('plus')}Add floor on top</button><button class="btn" data-f="below">${ic('plus')}Add basement</button></div>
-      <div class="list">${rows.map(({ f }) => {
+      <div class="list">${rows.map(f => {
         const n = map.items.filter(it => it.floor === f.id).length, cur = f.id === map.activeFloor;
         return `<div class="lrow${cur ? ' current' : ''}">
           <div class="grow"><input class="field" data-fname="${esc(f.id)}" value="${esc(f.name)}" maxlength="30" aria-label="Floor name"></div>
@@ -1203,7 +1475,7 @@ function buildFloors(body) {
           ${cur ? '<span class="pill">Here</span>' : `<button class="btn" data-go="${esc(f.id)}">Go</button>`}
           <button class="btn danger" data-delfloor="${esc(f.id)}" aria-label="Delete floor"${map.floors.length === 1 ? ' disabled' : ''}>${ic('del')}</button>
         </div>`; }).join('')}</div>
-      <label class="toggle"><input type="checkbox" id="f-below"${showBelow ? ' checked' : ''}>Show the floor below, faded</label>
+      <label class="toggle"><input type="checkbox" id="f-below"${settings.below ? ' checked' : ''}>Show the floor below, faded</label>
     </section>`;
   body.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => {
     const above = b.dataset.f === 'above';
@@ -1228,15 +1500,15 @@ function buildFloors(body) {
       selectedId = null; renderAll(); refreshSheet();
     });
   }));
-  body.querySelector('#f-below').addEventListener('change', e => { showBelow = e.target.checked; LS.set('mm2.below', showBelow ? '1' : '0'); requestDraw(); });
+  body.querySelector('#f-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
 }
 
 /* Enemy types */
 $('#edittypes').addEventListener('click', () => openSheet('Enemy types', buildTypes));
 function buildTypes(body) {
   body.innerHTML = `
-    <section style="border-top:0;padding-top:0">
-      <p>Rename a type or change its color. Every enemy of that type on the map updates with it.</p>
+    <section>
+      <p>Rename a type or change its color. Every enemy of that type on the map updates with it. Players are always blue.</p>
       <div class="list">${map.enemyTypes.map(t => {
         const n = map.items.filter(i => i.kind === 'enemy' && i.type === t.id).length;
         return `<div class="lrow" style="flex-wrap:wrap">
@@ -1275,25 +1547,25 @@ function buildTypes(body) {
 
 /* ---------- toolbar, keys, toast ---------- */
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
-$('#snapbtn').addEventListener('click', () => { snap = !snap; LS.set('mm2.snap', snap ? '1' : '0'); renderTools(); toast(snap ? 'Snap on: 0.5 m steps and 15° turns.' : 'Snap off: free placement.'); });
+$('#snapbtn').addEventListener('click', () => { settings.snap = !settings.snap; saveSettings(); renderTools(); toast(settings.snap ? `Snap on: ${settings.step} m steps and ${settings.rotStep}° turns.` : 'Snap off: free placement.'); });
 $('#fitbtn').addEventListener('click', fitView);
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
+  if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (!menuOpen()) { selectedId = null; setTool('select'); } return; }
+  if (menuOpen() || sheetEl) return;
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
   else if ((e.key === 'Delete' || e.key === 'Backspace') && selected()) { e.preventDefault(); const id = selectedId; mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
-  else if (e.key === 'Escape') { if (sheetEl) closeSheet(); else { selectedId = null; setTool('select'); } }
 });
 let toastTimer = null, toastEl = null;
 function toast(msg) {
   if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
   toastEl.textContent = msg; toastEl.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3600);
 }
-const clone = o => JSON.parse(JSON.stringify(o));
 
 /* ---------- start ---------- */
 readTheme();
@@ -1306,12 +1578,12 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDra
   let m = null;
   if (lastId) { try { m = normalize(Store.loadLocal(lastId)); } catch { m = null; } }
   openMap(m || sampleMap());
-  setStatus(m ? 'Saved on this device' : 'Example', 'ok');
+  if (m) setStatus('Saved on this device', 'ok');
   Store.init().then(async () => {
-    if (!Store.cloud) { if (m) setStatus('Saved on this device', 'ok'); return; }
+    if (!Store.cloud) return;
     const list = await Store.listCloud();
     const newest = list.sort((a, b) => (b.updated || 0) - (a.updated || 0))[0];
-    if (!edits && newest && (newest.updated || 0) > (map.updated || 0) && newest.id !== map.id) {
+    if (!edits && newest && (map.sample || (newest.updated || 0) > (map.updated || 0)) && newest.id !== map.id) {
       const cm = await Store.loadCloud(newest.id);
       if (cm && !edits) { try { openMap(normalize(cm)); return; } catch {} }
     }
