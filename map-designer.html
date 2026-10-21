@@ -46,6 +46,7 @@
   color-scheme: dark;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   background: var(--bg); color: var(--fg); font: 400 14px/1.4 var(--font-body);
@@ -101,7 +102,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .status[data-state="err"] i { background: var(--danger); }
 .iconbtn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); }
 .iconbtn:disabled { opacity: .35; cursor: default; }
-@media (max-width: 380px) { .status span { display: none; } }
+@media (max-width: 520px) { .status span { display: none; } }
 
 /* Stage */
 .stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
@@ -210,10 +211,10 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 }
 .sheet-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
 .sheet-head h2 { margin: 0; font: 600 20px var(--font-display); }
-.sheet section { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
-.sheet section:first-child { border-top: 0; padding-top: 0; }
-.sheet h3 { margin: 0; font: 600 11px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.sheet p { margin: 0; color: var(--muted); font-size: 13px; max-width: 60ch; }
+.doc section { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.doc section:first-child { border-top: 0; padding-top: 0; }
+.doc h3 { margin: 0; font: 600 11px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.doc p { margin: 0; color: var(--muted); font-size: 13px; max-width: 60ch; }
 .setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .setrow > span { font-weight: 500; }
 .field { width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 0 12px; font: 500 15px var(--font-body); }
@@ -235,6 +236,37 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .pill { font: 600 10px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 .toggle { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+/* Pages */
+.page { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: flex; flex-direction: column; }
+.page-head {
+  flex: none; display: flex; align-items: center; gap: 12px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+}
+.page-head h2 { margin: 0; font: 600 20px var(--font-display); }
+.page-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.page-inner { max-width: 640px; margin: 0 auto; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.tile { display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 500; font-size: 13px; }
+.tile svg { width: 44px; height: 44px; stroke-width: 1.6; }
+.card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.card-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: none; border: 0; text-align: left; }
+.card-head i { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 600 16px var(--font-display); font-style: normal; flex: none; box-shadow: 0 0 0 2px var(--enemy-ring) inset; }
+.card-head .grow { flex: 1; min-width: 0; }
+.card-head .t { font: 600 16px var(--font-display); }
+.card-head .s { font: 500 12px var(--font-mono); color: var(--muted); }
+.card-head > svg { color: var(--muted); }
+.card-head[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.card-body { display: grid; gap: 12px; padding: 12px 12px 14px; border-top: 1px solid var(--line); }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stats label, .card-body > label { display: grid; gap: 4px; font: 600 11px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stats input, .card-body textarea { width: 100%; height: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 0 10px; font: 500 14px var(--font-mono); }
+.card-body textarea { height: 64px; padding: 8px 10px; font: 400 14px var(--font-body); resize: vertical; text-transform: none; letter-spacing: 0; }
+.iconbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.bar-row > button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.locked-ui .tray, .locked-ui [data-tool="circle"], .locked-ui [data-tool="poly"], .locked-ui #edittypes { opacity: .35; pointer-events: none; }
+.setrow .ctrl { flex: 1; justify-content: flex-end; min-width: 200px; flex-wrap: nowrap; }
+.setrow output { min-width: 58px; text-align: right; font: 500 13px var(--font-mono); }
+.stepper button:disabled, .stepper input:disabled { opacity: .4; }
 .toast {
   position: fixed; z-index: 60; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   width: max-content; max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
@@ -258,10 +290,20 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     <div class="menu-buttons">
       <button class="mbtn primary" id="menunew">New Blank</button>
       <button class="mbtn" id="menumaps">Maps</button>
+      <button class="mbtn" id="menushapes">Shapes &amp; Symbols</button>
+      <button class="mbtn" id="menubestiary">Bestiary</button>
       <button class="mbtn" id="menusettings">Settings</button>
     </div>
     <button class="mcontinue" id="menucontinue">Continue <span id="menucontname"></span></button>
   </div>
+</section>
+
+<section class="page" id="page" hidden>
+  <header class="page-head">
+    <button class="iconbtn" id="pageback" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h2 id="pagetitle"></h2>
+  </header>
+  <div class="page-body" id="pagebody"><div class="page-inner doc" id="pageinner"></div></div>
 </section>
 
 <header class="top">
@@ -271,6 +313,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     <span class="mapname"><span id="mapname">Map</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
   </button>
   <button class="status" id="status" data-state="ok" aria-live="polite"><i></i><span id="statustext">Ready</span></button>
+  <button class="iconbtn" id="lockmap" aria-label="Lock map" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg></button>
   <button class="iconbtn" id="undo" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
   <button class="iconbtn" id="redo" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
 </header>
@@ -311,7 +354,6 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 /* ---------- constants ---------- */
 const MIN_SIZE = 0.25;
 const MARKER_R = 0.45;           // metres; roughly a person's footprint
-const WALL = 0.3;                // drawn wall thickness for rooms, metres
 const MIN_SCALE = 2, MAX_SCALE = 160;
 const MAX_SIDES = 12;
 const PLAYER_COLOR = '#0a8ff0';
@@ -319,11 +361,15 @@ const PLAYER_TYPE = '__player';
 const SHAPE_COLORS = [
   { name: 'Concrete', hex: '#8f99a5' }, { name: 'Slate', hex: '#4b5664' }, { name: 'Sand', hex: '#c2a878' },
   { name: 'Wood', hex: '#8c6b4a' }, { name: 'Foliage', hex: '#5f9a5b' }, { name: 'Water', hex: '#3d84c6' },
+  { name: 'White', hex: '#f4f5f7' }, { name: 'Black', hex: '#1c2026' }, { name: 'Brick', hex: '#a5493c' },
+  { name: 'Yellow', hex: '#e0b43a' }, { name: 'Purple', hex: '#7d5ba6' }, { name: 'Dark green', hex: '#355f3f' },
 ];
 const ENEMY_COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#8e4ec6', '#d6409f', '#8db600', '#687076'];
 const DEFAULT_TYPES = [
-  { id: 'grunt', name: 'Grunt', color: '#e5484d' }, { id: 'sniper', name: 'Sniper', color: '#f76b15' },
-  { id: 'heavy', name: 'Heavy', color: '#8e4ec6' }, { id: 'scout', name: 'Scout', color: '#ffc53d' },
+  { id: 'grunt', name: 'Grunt', color: '#e5484d', hp: 100, speed: 3.5, range: 25, acc: 45, notes: 'Standard infantry.' },
+  { id: 'sniper', name: 'Sniper', color: '#f76b15', hp: 70, speed: 2.5, range: 60, acc: 75, notes: 'Holds long sightlines. Weak up close.' },
+  { id: 'heavy', name: 'Heavy', color: '#8e4ec6', hp: 250, speed: 2, range: 20, acc: 40, notes: 'Slow and hard to put down.' },
+  { id: 'scout', name: 'Scout', color: '#ffc53d', hp: 60, speed: 5.5, range: 15, acc: 35, notes: 'Fast flanker.' },
 ];
 const POLY_NAMES = { 3: 'Triangle', 4: 'Square', 5: 'Pentagon', 6: 'Hexagon', 7: 'Heptagon', 8: 'Octagon', 9: 'Nonagon', 10: 'Decagon', 11: 'Hendecagon', 12: 'Dodecagon' };
 const ICON = {
@@ -338,6 +384,8 @@ const ICON = {
   image: '<path d="M4 5h16v14H4z"/><path d="M4 16l5-5 4 4 3-3 4 4"/>',
   save: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   open: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
+  padlock: '<path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>',
 };
 const ic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
@@ -375,16 +423,76 @@ const LS = {
 
 /* ---------- settings ---------- */
 const settings = (() => {
-  const d = { snap: LS.get('mm2.snap') !== '0', step: 0.5, rotStep: 15, below: LS.get('mm2.below') !== '0', style: 'room', join: 'merge' };
+  const d = { snap: LS.get('mm2.snap') !== '0', step: 0.5, rotStep: 15, below: LS.get('mm2.below') !== '0', style: 'room', join: 'merge',
+    roomLine: 0.3, roomAlpha: 0.35, solidLine: 1.5, solidAlpha: 1 };
   try { return { ...d, ...JSON.parse(LS.get('mm2.settings') || '{}') }; } catch { return d; }
 })();
 const saveSettings = () => LS.set('mm2.settings', JSON.stringify(settings));
 
+/* ---------- bestiary: enemy types shared by every map ---------- */
+function normType(t) {
+  const num = (v, d, a, b) => Number.isFinite(+v) ? clamp(+v, a, b) : d;
+  return { id: String(t.id || uid()), name: String(t.name || 'Enemy').slice(0, 24), color: isHex(t.color) ? t.color : ENEMY_COLORS[0],
+    hp: num(t.hp, 100, 1, 9999), speed: num(t.speed, 3.5, 0, 50), range: num(t.range, 25, 1, 500), acc: num(t.acc, 50, 0, 100), notes: String(t.notes || '').slice(0, 200) };
+}
+const Bestiary = {
+  data: { types: DEFAULT_TYPES.map(normType), deleted: [], updated: 0 },
+  timer: null,
+  load() {
+    try {
+      const d = JSON.parse(LS.get('mm2.bestiary') || 'null');
+      if (d && Array.isArray(d.types) && d.types.length) this.data = { types: d.types.map(normType), deleted: Array.isArray(d.deleted) ? d.deleted : [], updated: +d.updated || 0 };
+    } catch {}
+  },
+  save() {
+    this.data.updated = Date.now();
+    LS.set('mm2.bestiary', JSON.stringify(this.data));
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.push(), 800);
+  },
+  async push() {
+    if (!Store.cloud) return;
+    try { await Store.col().doc('_bestiary').set({ updated: this.data.updated, json: JSON.stringify(this.data) }); } catch {}
+  },
+  // union of this device's list and the account's list; the newer one wins on conflicts
+  async sync() {
+    if (!Store.cloud) return;
+    let c = null;
+    try { const snap = await Store.col().doc('_bestiary').get(); if (snap.exists) c = JSON.parse(snap.data().json); } catch { return; }
+    if (!c || !Array.isArray(c.types)) { this.push(); return; }
+    const local = this.data, cloud = { types: c.types.map(normType), deleted: Array.isArray(c.deleted) ? c.deleted : [], updated: +c.updated || 0 };
+    const [base, other] = cloud.updated > local.updated ? [cloud, local] : [local, cloud];
+    const deleted = [...new Set([...base.deleted, ...other.deleted])];
+    const types = base.types.filter(t => !deleted.includes(t.id));
+    for (const t of other.types) if (!types.some(x => x.id === t.id) && !deleted.includes(t.id)) types.push(t);
+    if (!types.length) types.push(...DEFAULT_TYPES.map(normType));
+    this.data = { types, deleted, updated: Math.max(base.updated, other.updated) };
+    LS.set('mm2.bestiary', JSON.stringify(this.data));
+    this.push();
+    absorbTypes(map); renderAll(); refreshSheet();
+  },
+};
+// fold a map's own copy of its enemy types into the bestiary and point its enemies at bestiary ids
+function absorbTypes(m) {
+  const B = Bestiary.data, remap = {};
+  let changed = false;
+  for (const t of m.enemyTypes || []) {
+    if (B.types.some(b => b.id === t.id) || B.deleted.includes(t.id)) continue;
+    const same = B.types.find(b => b.name.trim().toLowerCase() === t.name.trim().toLowerCase());
+    if (same) remap[t.id] = same.id; else { B.types.push(normType(t)); changed = true; }
+  }
+  for (const it of m.items) if (it.kind === 'enemy') {
+    if (remap[it.type]) it.type = remap[it.type];
+    if (!B.types.some(b => b.id === it.type)) it.type = B.types[0].id;
+  }
+  if (changed) Bestiary.save();
+}
+const usedTypes = m => Bestiary.data.types.filter(t => m.items.some(i => i.kind === 'enemy' && i.type === t.id));
+
 /* ---------- map model ---------- */
 function blankMap(name) {
   const g = { id: uid(), name: 'Ground' };
-  return { app: 'fps-map-designer', v: 2, id: uid(), name, floors: [g], activeFloor: g.id, items: [],
-    enemyTypes: DEFAULT_TYPES.map(t => ({ ...t })), lastSides: 4, lastColor: SHAPE_COLORS[0].hex, updated: Date.now() };
+  return { app: 'fps-map-designer', v: 3, id: uid(), name, floors: [g], activeFloor: g.id, items: [],
+    enemyTypes: [], lastSides: 4, lastColor: SHAPE_COLORS[0].hex, updated: Date.now() };
 }
 function sampleMap() {
   const m = blankMap('Example: Warehouse');
@@ -423,19 +531,20 @@ function normalize(m) {
   if (!Array.isArray(m.floors) || !m.floors.length) m.floors = [{ id: uid(), name: 'Ground' }];
   m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor') }));
   if (!m.floors.some(f => f.id === m.activeFloor)) m.activeFloor = m.floors[0].id;
-  if (!Array.isArray(m.enemyTypes) || !m.enemyTypes.length) m.enemyTypes = DEFAULT_TYPES.map(t => ({ ...t }));
-  m.enemyTypes = m.enemyTypes.map(t => ({ id: String(t.id || uid()), name: String(t.name || 'Enemy'), color: isHex(t.color) ? t.color : ENEMY_COLORS[0] }));
+  m.enemyTypes = (Array.isArray(m.enemyTypes) ? m.enemyTypes : []).filter(t => t && t.id).map(normType);
   const floorIds = new Set(m.floors.map(f => f.id));
   const num = (v, d) => Number.isFinite(+v) ? +v : d;
   m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy', 'player'].includes(i.kind)).map(i => {
     const o = { id: String(i.id || uid()), floor: i.floor, kind: i.kind, x: num(i.x, 0), y: num(i.y, 0) };
-    if (i.kind === 'enemy') { o.type = m.enemyTypes.some(t => t.id === i.type) ? i.type : m.enemyTypes[0].id; return o; }
+    if (i.locked) o.locked = true;
+    if (i.kind === 'enemy') { o.type = String(i.type || ''); return o; }
     if (i.kind === 'player') { o.rot = norm360(num(i.rot, 0)); return o; }
     return Object.assign(o, {
       w: Math.max(MIN_SIZE, num(i.w, 4)), h: Math.max(MIN_SIZE, num(i.h, 4)), rot: num(i.rot, 0),
       sides: clamp(Math.round(num(i.sides, 4)), 3, MAX_SIDES), color: isHex(i.color) ? i.color : SHAPE_COLORS[0].hex, lock: !!i.lock,
       style: i.style === 'room' ? 'room' : 'solid',          // maps from v1 had only solid shapes
       walls: i.walls === 'divide' ? 'divide' : 'merge',
+      ...(i.sizeLock ? { sizeLock: true } : {}),
     });
   });
   m.id = String(m.id || uid());
@@ -443,7 +552,8 @@ function normalize(m) {
   m.lastSides = clamp(Math.round(num(m.lastSides, 4)), 3, MAX_SIDES);
   m.lastColor = isHex(m.lastColor) ? m.lastColor : SHAPE_COLORS[0].hex;
   m.updated = num(m.updated, Date.now());
-  m.app = 'fps-map-designer'; m.v = 2;
+  m.locked = !!m.locked;
+  m.app = 'fps-map-designer'; m.v = 3;
   return m;
 }
 
@@ -482,7 +592,7 @@ const Store = {
   },
   async listCloud() {
     if (!this.cloud) return [];
-    try { const s = await this.col().get(); return s.docs.map(d => { const x = d.data() || {}; return { id: d.id, name: x.name, updated: x.updated, count: x.count, floors: x.floors }; }); }
+    try { const s = await this.col().get(); return s.docs.filter(d => !d.id.startsWith('_')).map(d => { const x = d.data() || {}; return { id: d.id, name: x.name, updated: x.updated, count: x.count, floors: x.floors }; }); }
     catch { return []; }
   },
   async loadCloud(id) {
@@ -520,23 +630,22 @@ const canvas = $('#map'), ctx = canvas.getContext('2d'), stage = $('#stage'), ba
 const floorIndex = () => Math.max(0, map.floors.findIndex(f => f.id === map.activeFloor));
 const byId = id => map.items.find(i => i.id === id);
 const selected = () => (selectedId && byId(selectedId)) || null;
-const typeOf = id => map.enemyTypes.find(t => t.id === id) || map.enemyTypes[0];
+const typeOf = id => Bestiary.data.types.find(t => t.id === id) || Bestiary.data.types[0];
 const isMarker = it => it.kind === 'enemy' || it.kind === 'player';
 const isRoom = it => (it.kind === 'circle' || it.kind === 'poly') && it.style === 'room';
 function itemName(it) {
   if (it.kind === 'player') return 'Player';
   if (it.kind === 'enemy') return typeOf(it.type).name;
   const sq = Math.abs(it.w - it.h) < 0.01;
-  const base = it.kind === 'circle' ? (sq ? 'Circle' : 'Ellipse') : (it.sides === 4 && !sq ? 'Rectangle' : POLY_NAMES[it.sides]);
-  return it.style === 'room' ? base + ' room' : base;
+  return it.kind === 'circle' ? (sq ? 'Circle' : 'Ellipse') : (it.sides === 4 && !sq ? 'Rectangle' : POLY_NAMES[it.sides]);
 }
 
 /* ---------- history ---------- */
-const serialize = () => JSON.stringify({ floors: map.floors, items: map.items, enemyTypes: map.enemyTypes, activeFloor: map.activeFloor });
+const serialize = () => JSON.stringify({ floors: map.floors, items: map.items, activeFloor: map.activeFloor });
 function restore(s) {
   Object.assign(map, JSON.parse(s));
   if (!selected()) selectedId = null;
-  if (tool.startsWith('enemy:') && !map.enemyTypes.some(t => 'enemy:' + t.id === tool)) tool = 'select';
+  if (tool.startsWith('enemy:') && !Bestiary.data.types.some(t => 'enemy:' + t.id === tool)) tool = 'select';
 }
 function commit(pre) {
   history.push(pre); if (history.length > 150) history.shift();
@@ -544,6 +653,7 @@ function commit(pre) {
   markDirty();
 }
 function mutate(fn) {
+  if (map.locked) { toast('The map is locked. Tap the padlock at the top to edit.'); renderAll(); return; }
   const pre = serialize();
   fn();
   if (serialize() !== pre) commit(pre);
@@ -569,6 +679,7 @@ async function saveNow() {
   saving = true;
   setStatus('Saving…', 'pending');
   const m = map;
+  m.enemyTypes = usedTypes(m);          // backup files and other devices still know these enemies
   const local = Store.saveLocal(m);
   const cloud = await Store.saveCloud(m);
   saving = false;
@@ -650,10 +761,10 @@ function handles(R, it) {
   return { corners, top: { x: mx, y: my }, rot: { x: mx + Math.sin(a) * 34, y: my - Math.cos(a) * 34 } };
 }
 function hitHandle(it, p) {
-  if (it.kind === 'enemy') return null;
+  if (it.kind === 'enemy' || it.locked || map.locked) return null;
   const H = handles(view, it), near = q => Math.hypot(q.x - p.x, q.y - p.y) <= 22;
   if (near(H.rot)) return { type: 'rotate' };
-  for (const c of H.corners) if (near(c)) {
+  if (!it.sizeLock) for (const c of H.corners) if (near(c)) {
     const [ax, ay] = toWorld(it, -c.sx * it.w / 2, -c.sy * it.h / 2);
     return { type: 'resize', sx: c.sx, sy: c.sy, ax, ay, w0: it.w, h0: it.h };
   }
@@ -695,17 +806,13 @@ function roomGroups(floorId) {
     const mode = members[0].walls === 'divide' ? 'divide' : 'merge';
     const g = { ids: new Set(members.map(m => m.id)), size: members.length, mode, fills: [], walls: [] };
     try {
-      if (members.length === 1) { g.fills.push({ color: members[0].color, mp: [mp[0]] }); g.walls = [mp[0]]; }
-      else if (mode === 'merge') { members.forEach((m, k) => g.fills.push({ color: m.color, mp: [mp[k]] })); g.walls = PC.union(...mp); }
-      else {
-        // each room keeps what later rooms don't cover; the later room owns the overlap, so there is one dividing wall
-        members.forEach((m, k) => {
-          const later = mp.slice(k + 1);
-          const region = later.length ? PC.difference(mp[k], ...later) : [mp[k]];
-          g.fills.push({ color: m.color, mp: region });
-          g.walls.push(...region);
-        });
-      }
+      // each room keeps what later rooms don't cover; the later room owns the overlap
+      members.forEach((m, k) => {
+        const later = mp.slice(k + 1);
+        g.fills.push({ color: m.color, mp: later.length ? PC.difference(mp[k], ...later) : [mp[k]] });
+      });
+      // one room: a single outline around the group; separate rooms: every region outlined, so one dividing wall
+      g.walls = members.length === 1 ? [mp[0]] : mode === 'merge' ? PC.union(...mp) : g.fills.flatMap(f => f.mp);
     } catch {
       g.fills = members.map((m, k) => ({ color: m.color, mp: [mp[k]] })); g.walls = mp;
     }
@@ -768,13 +875,16 @@ function traceMulti(c, R, mp) {
 }
 function drawRooms(c, R, floorId) {
   const groups = roomGroups(floorId);
+  c.save();
+  c.globalAlpha *= settings.roomAlpha;
   for (const g of groups) for (const f of g.fills) {
     c.beginPath(); traceMulti(c, R, f.mp);
-    c.fillStyle = T.dark ? mix(f.color, T.gridBg, 0.55) : mix(f.color, '#ffffff', 0.6);
-    c.fill('evenodd');
+    c.fillStyle = f.color; c.fill('evenodd');
   }
+  c.restore();
+  if (settings.roomLine <= 0) return;
   c.save();
-  c.lineWidth = Math.max(2, WALL * R.s); c.lineJoin = 'miter'; c.miterLimit = 3; c.strokeStyle = T.wall;
+  c.lineWidth = Math.max(1, settings.roomLine * R.s); c.lineJoin = 'miter'; c.miterLimit = 3; c.strokeStyle = T.wall;
   for (const g of groups) { c.beginPath(); traceMulti(c, R, g.walls); c.stroke(); }
   c.restore();
 }
@@ -787,8 +897,14 @@ function drawShape(c, R, it) {
   const [sx, sy] = w2s(R, it.x, it.y);
   c.save(); c.translate(sx, sy); c.rotate(rad(it.rot));
   shapePath(c, R, it);
-  c.fillStyle = it.color; c.fill();
-  c.lineWidth = 1.5; c.strokeStyle = T.dark ? mix(it.color, '#ffffff', 0.35) : mix(it.color, '#000000', 0.35); c.stroke();
+  const a = c.globalAlpha;
+  c.globalAlpha = a * settings.solidAlpha; c.fillStyle = it.color; c.fill();
+  c.globalAlpha = a;
+  if (settings.solidLine > 0) {
+    // light fills get a dark edge and dark fills a light one, so white and black both read on either theme
+    const [r, g, b] = hexRgb(it.color), light = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
+    c.lineWidth = settings.solidLine; c.strokeStyle = mix(it.color, light ? '#000000' : '#ffffff', light ? 0.45 : 0.35); c.stroke();
+  }
   c.restore();
 }
 function markerLetter(c, ch, color, x, y, r) {
@@ -824,7 +940,7 @@ function drawSelection(c, R) {
   const [cx, cy] = w2s(R, it.x, it.y);
   if (isMarker(it)) {
     c.beginPath(); c.arc(cx, cy, markerPx(R) + 5, 0, Math.PI * 2); c.stroke();
-    if (it.kind === 'player') {
+    if (it.kind === 'player' && !it.locked && !map.locked) {
       const H = handles(R, it);
       c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
       dot(c, H.rot.x, H.rot.y, true);
@@ -832,12 +948,15 @@ function drawSelection(c, R) {
     }
     c.restore(); return;
   }
-  const H = handles(R, it);
+  const H = handles(R, it), frozen = it.locked || map.locked;
   c.beginPath(); H.corners.forEach((p, k) => k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.closePath();
+  if (frozen) c.strokeStyle = T.muted;
   c.setLineDash([6, 4]); c.lineWidth = 1.5; c.stroke(); c.setLineDash([]);
-  c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
-  H.corners.forEach(p => dot(c, p.x, p.y, false));
-  dot(c, H.rot.x, H.rot.y, true);
+  if (!frozen) {
+    c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
+    if (!it.sizeLock) H.corners.forEach(p => dot(c, p.x, p.y, false));
+    dot(c, H.rot.x, H.rot.y, true);
+  }
   const label = G && G.type === 'rotate' ? `${Math.round(it.rot)}°` : dimsText(it);
   pillLabel(c, R, label, cx, Math.max(...H.corners.map(p => p.y)) + 12);
   c.restore();
@@ -902,13 +1021,15 @@ canvas.addEventListener('pointerdown', e => {
   const [wx, wy] = s2w(view, p.x, p.y);
   if (tool !== 'select') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
   const sel = selected();
-  if (sel) {
+  // on a shape that is small on screen, a drag that starts on the shape moves it instead of catching a corner handle
+  const onSmallSel = sel && !isMarker(sel) && Math.min(sel.w, sel.h) * view.s < 80 && hitShape(sel, wx, wy, 0);
+  if (sel && !onSmallSel) {
     const h = hitHandle(sel, p);
     if (h) { G = { ...h, id: sel.id, pre: serialize(), start: p, changed: false }; return; }
   }
-  const hit = hitItem(wx, wy);
+  const hit = onSmallSel ? sel : hitItem(wx, wy);
   // a room has to be selected before it can be dragged, so a finger inside a big room still pans the map
-  if (hit && (!isRoom(hit) || hit.id === selectedId)) {
+  if (hit && !hit.locked && !map.locked && (!isRoom(hit) || hit.id === selectedId)) {
     select(hit.id);
     G = { type: 'move', id: hit.id, pre: serialize(), ox: wx - hit.x, oy: wy - hit.y, start: p, changed: false };
     return;
@@ -1030,6 +1151,7 @@ function placeMarker(type, x, y) {
   mutate(() => map.items.push(it));
 }
 function setTool(t) {
+  if (map.locked && t !== 'select') { toast('The map is locked. Tap the padlock at the top to edit.'); return; }
   tool = t;
   if (t !== 'select') selectedId = null;
   renderAll();
@@ -1055,6 +1177,7 @@ function showGhost(type, x, y) {
 function moveGhost(x, y) { if (ghost) { ghost.style.left = x + 'px'; ghost.style.top = (y - 44) + 'px'; } }
 function endTrayDrag() { if (ghost) ghost.remove(); ghost = null; trayDrag = null; }
 tray.addEventListener('pointerdown', e => {
+  if (map.locked) return;
   const chip = e.target.closest('[data-type]'); if (!chip) return;
   trayDrag = { id: e.pointerId, type: chip.dataset.type, x: e.clientX, y: e.clientY, chip, dragging: false };
 });
@@ -1089,8 +1212,11 @@ function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools
 function renderHeader() {
   $('#mapname').textContent = map.name;
   $('#sampletag').hidden = !map.sample;
+  $('#lockmap').setAttribute('aria-pressed', String(!!map.locked));
+  $('#lockmap').setAttribute('aria-label', map.locked ? 'Unlock map' : 'Lock map');
+  document.body.classList.toggle('locked-ui', !!map.locked);
 }
-function updateUndo() { $('#undo').disabled = !history.length; $('#redo').disabled = !future.length; }
+function updateUndo() { $('#undo').disabled = map.locked || !history.length; $('#redo').disabled = map.locked || !future.length; }
 function renderFloors() {
   const fi = floorIndex(), f = map.floors[fi];
   $('#floorlabel').textContent = f.name;
@@ -1100,7 +1226,7 @@ function renderFloors() {
 }
 function renderTray() {
   const chip = (type, cls, pressed) => { const l = markerLook(type); return `<button class="chip${cls}" data-type="${esc(type)}" aria-pressed="${pressed}"><i style="background:${l.color};color:${textOn(l.color)}">${esc(l.ch)}</i>${esc(l.name)}</button>`; };
-  tray.innerHTML = chip(PLAYER_TYPE, ' player', tool === 'player') + map.enemyTypes.map(t => chip(t.id, '', tool === 'enemy:' + t.id)).join('');
+  tray.innerHTML = chip(PLAYER_TYPE, ' player', tool === 'player') + Bestiary.data.types.map(t => chip(t.id, '', tool === 'enemy:' + t.id)).join('');
 }
 function renderTools() {
   document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
@@ -1110,7 +1236,8 @@ function updateHint() {
   const h = $('#hint');
   let text = '';
   const shapeWord = settings.style === 'room' ? ' room' : '';
-  if (tool === 'circle') text = `Tap the map to place a circle${shapeWord}.`;
+  if (map.locked) text = 'The map is locked. You can look around and tap things to check sizes. Tap the padlock to edit.';
+  else if (tool === 'circle') text = `Tap the map to place a circle${shapeWord}.`;
   else if (tool === 'poly') text = `Tap the map to place a ${POLY_NAMES[map.lastSides].toLowerCase()}${shapeWord}.`;
   else if (tool === 'player') text = 'Tap the map to place players. Tap Player again to stop.';
   else if (tool.startsWith('enemy:')) { const t = typeOf(tool.slice(6)); text = `Tap the map to drop ${t.name} enemies. Tap ${t.name} again to stop.`; }
@@ -1125,19 +1252,25 @@ function renderBar() {
   bar.hidden = !it;
   if (!it) { bar.innerHTML = ''; barKey = null; return; }
   const g = groupOf(it);
-  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), it.kind === 'enemy' ? map.enemyTypes.map(t => t.id + t.name + t.color).join() : ''].join('|');
+  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock,
+    it.kind === 'enemy' ? Bestiary.data.types.map(t => t.id + t.name + t.color).join() : ''].join('|');
   if (key !== barKey) { bar.innerHTML = barHTML(it, g); bindBar(it); barKey = key; }
   syncBar();
 }
 function barHTML(it, g) {
+  const title = `<div class="bar-title"><strong data-b="name"></strong><span data-b="dims"></span></div>`;
+  const close = `<button data-act="close" aria-label="Close">${ic('close')}</button>`;
+  if (map.locked) return `<div class="bar-row">${title}${close}</div>`;
+  const lock = `<button data-act="lockobj" aria-label="${it.locked ? 'Unlock' : 'Lock'} this object" aria-pressed="${!!it.locked}">${ic('padlock')}</button>`;
+  if (it.locked) return `<div class="bar-row">${title}${lock}${close}</div>`;
   const row = `
   <div class="bar-row">
-    <div class="bar-title"><strong data-b="name"></strong><span data-b="dims"></span></div>
-    ${it.kind === 'poly' ? `<div class="ministep" aria-label="Sides"><button data-sides="-1" aria-label="Fewer sides">−</button><span data-b="sidesn"></span><button data-sides="1" aria-label="More sides">+</button></div>` : ''}
-    ${isMarker(it) ? `<button data-act="dup" aria-label="Duplicate">${ic('dup')}</button>` : ''}
+    ${title}
+    ${it.kind === 'poly' ? `<div class="ministep" aria-label="Sides"><button data-sides="-1" aria-label="Fewer sides">−</button><span data-b="sidesn"></span><button data-sides="1" aria-label="More sides">+</button></div>` : `<button data-act="dup" aria-label="Duplicate">${ic('dup')}</button>`}
+    ${lock}
     <button data-act="del" class="danger" aria-label="Delete">${ic('del')}</button>
     <button data-act="more" aria-label="More settings" aria-expanded="${barMore}">${ic('more')}</button>
-    <button data-act="close" aria-label="Close">${ic('close')}</button>
+    ${close}
   </div>`;
   if (!barMore) return row;
   const pos = `<div class="prow"><span class="lbl">Position</span><div class="ctrl">
@@ -1147,8 +1280,9 @@ function barHTML(it, g) {
   let more;
   if (it.kind === 'enemy') {
     more = `<div class="prow"><span class="lbl">Type</span><div class="ctrl">
-      ${map.enemyTypes.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
-    </div></div>` + pos;
+      ${Bestiary.data.types.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
+    </div></div>
+    <div class="prow"><span class="lbl">Stats</span><div class="ctrl"><span class="note mono" data-b="stats"></span></div></div>` + pos;
   } else if (it.kind === 'player') {
     more = `<div class="prow"><label class="lbl" for="p-rot">Facing</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>` + pos;
   } else {
@@ -1164,6 +1298,7 @@ function barHTML(it, g) {
       <div class="stepper"><span>W</span><button data-step="w:-1" aria-label="Narrower">−</button><input id="p-w" type="number" inputmode="decimal" step="0.5" aria-label="Width in metres"><button data-step="w:1" aria-label="Wider">+</button></div>
       <div class="stepper"><span>H</span><button data-step="h:-1" aria-label="Shorter">−</button><input id="p-h" type="number" inputmode="decimal" step="0.5" aria-label="Height in metres"><button data-step="h:1" aria-label="Taller">+</button></div>
       <button class="lockbtn" data-act="lock" aria-label="Keep proportions">${ic('lock')}</button>
+      <button class="smallbtn" data-act="sizelock" aria-pressed="${!!it.sizeLock}">${ic('padlock')}${it.sizeLock ? 'Size locked' : 'Lock size'}</button>
     </div></div>
     <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
     <div class="prow"><span class="lbl">Color</span><div class="ctrl"><div class="swatches">
@@ -1189,7 +1324,9 @@ function bindBar(it) {
     if (act === 'close') { selectedId = null; renderAll(); }
     else if (act === 'more') { barMore = !barMore; renderBar(); }
     else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
-    else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; mutate(() => map.items.push(c)); selectedId = c.id; renderAll(); }
+    else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; delete c.locked; mutate(() => map.items.push(c)); selectedId = c.id; renderAll(); }
+    else if (act === 'lockobj') mutate(() => { if (x.locked) delete x.locked; else x.locked = true; });
+    else if (act === 'sizelock') mutate(() => { if (x.sizeLock) delete x.sizeLock; else x.sizeLock = true; });
     else if (act === 'front' || act === 'back') mutate(() => { map.items = map.items.filter(i => i.id !== id); act === 'front' ? map.items.push(x) : map.items.unshift(x); });
     else if (act === 'lock') mutate(() => { x.lock = !x.lock; });
   });
@@ -1229,10 +1366,16 @@ function syncBar() {
   txt('name', itemName(it));
   set('#p-x', round2(it.x)); set('#p-y', round2(it.y));
   const floor = map.floors[floorIndex()].name;
-  if (it.kind === 'enemy') { txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-settype', it.type); return; }
+  if (it.kind === 'enemy') {
+    const t = typeOf(it.type);
+    txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-settype', it.type);
+    txt('stats', `${t.hp} HP · ${t.speed} m/s · ${t.range} m · ${t.acc}%`);
+    return;
+  }
   if (it.kind === 'player') { txt('dims', `${floor} · facing ${Math.round(it.rot)}°`); set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`); return; }
   const g = groupOf(it);
-  txt('dims', dimsText(it).replace(/\.0\b/g, '') + (g && g.size > 1 ? ' · joined' : ''));
+  txt('dims', (it.style === 'room' ? 'Room · ' : '') + dimsText(it).replace(/\.0\b/g, '') + (g && g.size > 1 ? ' · joined' : ''));
+  bar.querySelectorAll('[data-step], #p-w, #p-h, [data-act="lock"]').forEach(el => { el.disabled = !!it.sizeLock; });
   txt('sidesn', it.sides);
   set('#p-sides', it.sides); txt('sides', `${it.sides} · ${POLY_NAMES[it.sides]}`);
   set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`);
@@ -1250,13 +1393,30 @@ function openSheet(title, build) {
   sheetBuild = build;
   sheetEl = document.createElement('div');
   sheetEl.className = 'backdrop';
-  sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-head"><h2>${esc(title)}</h2><button class="iconbtn" data-close aria-label="Close">${ic('close')}</button></div><div class="sheet-body"></div></div>`;
+  sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-head"><h2>${esc(title)}</h2><button class="iconbtn" data-close aria-label="Close">${ic('close')}</button></div><div class="sheet-body doc"></div></div>`;
   sheetEl.addEventListener('click', e => { if (e.target === sheetEl || e.target.closest('[data-close]')) closeSheet(); });
   document.body.appendChild(sheetEl);
   refreshSheet();
 }
-function refreshSheet() { if (sheetEl && sheetBuild) sheetBuild(sheetEl.querySelector('.sheet-body')); }
+function refreshSheet() {
+  if (sheetEl && sheetBuild) sheetBuild(sheetEl.querySelector('.sheet-body'));
+  if (pageBuild) pageBuild($('#pageinner'));
+}
 function closeSheet() { if (sheetEl) sheetEl.remove(); sheetEl = null; sheetBuild = null; }
+
+/* full-screen pages: what menu buttons open; Back returns to wherever the page was opened from */
+let pageBuild = null, pageReturn = 'menu';
+function openPage(title, build, from) {
+  closeSheet();
+  pageBuild = build; pageReturn = from;
+  $('#pagetitle').textContent = title;
+  $('#page').hidden = false;
+  $('#pagebody').scrollTop = 0;
+  build($('#pageinner'));
+}
+function closePage() { $('#page').hidden = true; pageBuild = null; $('#pageinner').innerHTML = ''; }
+function closeAll() { closeSheet(); closePage(); }
+$('#pageback').addEventListener('click', closePage);
 function armButton(btn, label, onConfirm) {
   if (btn.dataset.armed) { onConfirm(); return; }
   const old = btn.innerHTML;
@@ -1277,20 +1437,113 @@ function showMenu() {
 function hideMenu() { menu.hidden = true; if (!fitted && view.W) { fitted = true; fitView(); } requestDraw(); }
 $('#home').addEventListener('click', showMenu);
 $('#menucontinue').addEventListener('click', hideMenu);
-$('#menumaps').addEventListener('click', () => openSheet('Maps', b => buildMaps(b, true)));
-$('#menusettings').addEventListener('click', () => openSheet('Settings', buildSettings));
-$('#menunew').addEventListener('click', () => openSheet('New blank map', body => {
+$('#menumaps').addEventListener('click', () => openPage('Maps', b => buildMaps(b, true), 'menu'));
+$('#menushapes').addEventListener('click', () => openPage('Shapes & Symbols', buildShapes, 'menu'));
+$('#menubestiary').addEventListener('click', () => openPage('Bestiary', buildBestiary, 'menu'));
+$('#menusettings').addEventListener('click', () => openPage('Settings', buildSettings, 'menu'));
+$('#menunew').addEventListener('click', () => openNewMap('menu'));
+const openNewMap = from => openPage('New blank map', body => {
   body.innerHTML = `<section>
       <label class="eyebrow" for="n-name">Map name</label>
       <input class="field" id="n-name" maxlength="80" value="Untitled map">
       <div class="btnrow"><button class="btn primary" id="n-create">${ic('plus')}Create map</button></div>
     </section>`;
   const inp = body.querySelector('#n-name');
-  const go = async () => { await newMapNamed(inp.value.trim() || 'Untitled map'); closeSheet(); hideMenu(); };
+  const go = async () => { await newMapNamed(inp.value.trim() || 'Untitled map'); closeAll(); hideMenu(); };
   body.querySelector('#n-create').addEventListener('click', go);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   inp.select();
-}));
+}, from);
+
+/* Shapes & Symbols */
+function shapeSVG(kind, n) {
+  if (kind === 'circle') return '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="18"/></svg>';
+  const pts = unitPoly(n).map(([x, y]) => `${(24 + x * 36).toFixed(1)},${(24 + y * 36).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><polygon points="${pts}"/></svg>`;
+}
+function buildShapes(body) {
+  const tiles = [['circle', 0, 'Circle'], ...Array.from({ length: MAX_SIDES - 2 }, (_, i) => ['poly', i + 3, POLY_NAMES[i + 3]])];
+  body.innerHTML = `
+    <section>
+      <h3>Basic shapes</h3>
+      <p>Tap a shape to start placing it on your map.</p>
+      <div class="tiles">${tiles.map(([k, n, name]) => `<button class="tile" data-k="${k}" data-n="${n}">${shapeSVG(k, n)}${name}</button>`).join('')}</div>
+    </section>
+    <section>
+      <h3>Custom shapes</h3>
+      <p>Coming in the next update: a Shape Builder where you combine these pieces into your own shapes, like a crate stack or a furnished room, and save them here to drag onto any map.</p>
+    </section>`;
+  body.querySelectorAll('.tile').forEach(b => b.addEventListener('click', () => {
+    if (map.locked) { toast('The map is locked. Unlock it to place shapes.'); return; }
+    if (b.dataset.k === 'poly') map.lastSides = +b.dataset.n;
+    closeAll(); hideMenu(); setTool(b.dataset.k);
+  }));
+}
+
+/* Bestiary */
+let bestiaryOpen = null;
+const statLine = t => `${t.hp} HP · ${t.speed} m/s · ${t.range} m · ${t.acc}%`;
+function buildBestiary(body) {
+  const types = Bestiary.data.types;
+  const here = id => map.items.filter(i => i.kind === 'enemy' && i.type === id).length;
+  const letter = t => (t.name.trim()[0] || '?').toUpperCase();
+  body.innerHTML = `
+    <section>
+      <p>Enemy types are shared by all your maps. Health, speed, range and accuracy will drive the simulation later.</p>
+      <div class="btnrow"><button class="btn primary" id="b-add">${ic('plus')}New enemy type</button></div>
+      <div class="list">${types.map(t => { const open = bestiaryOpen === t.id; return `
+        <div class="card">
+          <button class="card-head" data-open="${esc(t.id)}" aria-expanded="${open}">
+            <i style="background:${t.color};color:${textOn(t.color)}">${esc(letter(t))}</i>
+            <div class="grow"><div class="t">${esc(t.name)}</div><div class="s">${statLine(t)}</div></div>
+            ${ic('chevron')}
+          </button>
+          ${open ? `<div class="card-body">
+            <label>Name<input class="field" data-f="name" value="${esc(t.name)}" maxlength="24"></label>
+            <div class="swatches">${ENEMY_COLORS.map(c => `<button class="sw" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === t.color}"></button>`).join('')}</div>
+            <div class="stats">
+              <label>Health<input type="number" inputmode="decimal" data-f="hp" value="${t.hp}"></label>
+              <label>Speed (m/s)<input type="number" inputmode="decimal" step="0.5" data-f="speed" value="${t.speed}"></label>
+              <label>Range (m)<input type="number" inputmode="decimal" data-f="range" value="${t.range}"></label>
+              <label>Accuracy (%)<input type="number" inputmode="decimal" data-f="acc" value="${t.acc}"></label>
+            </div>
+            <label>Notes<textarea data-f="notes" maxlength="200">${esc(t.notes)}</textarea></label>
+            <div class="btnrow" style="align-items:center"><span class="muted" style="flex:1;font-size:13px">${here(t.id)} on this map</span>
+              <button class="btn danger" data-del${types.length === 1 ? ' disabled' : ''}>${ic('del')}Delete type</button></div>
+          </div>` : ''}
+        </div>`; }).join('')}</div>
+    </section>`;
+  body.querySelector('#b-add').addEventListener('click', () => {
+    const used = new Set(types.map(t => t.color));
+    const t = normType({ name: `Enemy ${types.length + 1}`, color: ENEMY_COLORS.find(c => !used.has(c)) || ENEMY_COLORS[types.length % ENEMY_COLORS.length] });
+    types.push(t); bestiaryOpen = t.id; Bestiary.save(); renderAll(); refreshSheet();
+    const inp = body.querySelector('[data-f="name"]'); if (inp) { inp.focus(); inp.select(); }
+  });
+  body.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { bestiaryOpen = bestiaryOpen === b.dataset.open ? null : b.dataset.open; refreshSheet(); }));
+  const t = types.find(x => x.id === bestiaryOpen); if (!t) return;
+  const card = body.querySelector('.card-body'), head = body.querySelector(`[data-open="${CSS.escape(t.id)}"]`);
+  // text edits update the card header in place so the next field you tap isn't rebuilt under your finger
+  card.querySelectorAll('[data-f]').forEach(el => el.addEventListener('change', () => {
+    if (el.dataset.f === 'name' && !el.value.trim()) { el.value = t.name; return; }
+    Object.assign(t, normType({ ...t, [el.dataset.f]: el.value }));
+    if (el.dataset.f !== 'notes' && el.dataset.f !== 'name') el.value = t[el.dataset.f];
+    head.querySelector('.t').textContent = t.name; head.querySelector('.s').textContent = statLine(t); head.querySelector('i').textContent = letter(t);
+    Bestiary.save(); renderAll();
+  }));
+  card.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => { t.color = b.dataset.color; Bestiary.save(); renderAll(); refreshSheet(); }));
+  const del = card.querySelector('[data-del]');
+  del.addEventListener('click', () => armButton(del, `Delete? Its enemies become ${types.find(x => x.id !== t.id).name}`, () => {
+    Bestiary.data.types = types.filter(x => x.id !== t.id);
+    Bestiary.data.deleted.push(t.id);
+    const fallback = Bestiary.data.types[0].id;
+    let moved = false;
+    map.items.forEach(i => { if (i.kind === 'enemy' && i.type === t.id) { i.type = fallback; moved = true; } });
+    if (tool === 'enemy:' + t.id) tool = 'select';
+    Bestiary.save(); bestiaryOpen = null;
+    if (moved) markDirty();
+    renderAll(); refreshSheet();
+  }));
+}
 
 /* Settings */
 function buildSettings(body) {
@@ -1310,6 +1563,16 @@ function buildSettings(body) {
       <p>One room removes the walls between joined rooms. Separate rooms keeps a dividing wall. You can switch any joined group from its More panel.</p>
     </section>
     <section>
+      <h3>Rooms</h3>
+      <div class="setrow"><span>Wall thickness</span><div class="ctrl"><input type="range" id="s-roomLine" min="0" max="1" step="0.05" value="${settings.roomLine}"><output data-o="roomLine"></output></div></div>
+      <div class="setrow"><span>Floor opacity</span><div class="ctrl"><input type="range" id="s-roomAlpha" min="0" max="1" step="0.05" value="${settings.roomAlpha}"><output data-o="roomAlpha"></output></div></div>
+    </section>
+    <section>
+      <h3>Solids</h3>
+      <div class="setrow"><span>Outline thickness</span><div class="ctrl"><input type="range" id="s-solidLine" min="0" max="6" step="0.5" value="${settings.solidLine}"><output data-o="solidLine"></output></div></div>
+      <div class="setrow"><span>Fill opacity</span><div class="ctrl"><input type="range" id="s-solidAlpha" min="0.05" max="1" step="0.05" value="${settings.solidAlpha}"><output data-o="solidAlpha"></output></div></div>
+    </section>
+    <section>
       <h3>Floors</h3>
       <label class="toggle"><input type="checkbox" id="s-below"${settings.below ? ' checked' : ''}>Show the floor below, faded</label>
     </section>
@@ -1323,6 +1586,13 @@ function buildSettings(body) {
     saveSettings(); refreshSheet(); renderAll();
   }));
   body.querySelector('#s-snap').addEventListener('change', e => { settings.snap = e.target.checked; saveSettings(); renderTools(); });
+  const show = { roomLine: v => `${v.toFixed(2)} m`, roomAlpha: v => `${Math.round(v * 100)}%`, solidLine: v => `${v} px`, solidAlpha: v => `${Math.round(v * 100)}%` };
+  for (const k of Object.keys(show)) {
+    const el = body.querySelector('#s-' + k), out = body.querySelector(`[data-o="${k}"]`);
+    out.textContent = show[k](settings[k]);
+    el.addEventListener('input', () => { settings[k] = +el.value; out.textContent = show[k](settings[k]); requestDraw(); });
+    el.addEventListener('change', saveSettings);
+  }
   body.querySelector('#s-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
 }
 
@@ -1335,6 +1605,7 @@ async function openMapById(id) {
   return true;
 }
 function openMap(m) {
+  absorbTypes(m);
   map = m; history = []; future = []; livePre = null; selectedId = null; tool = 'select'; edits = 0;
   roomCache.clear();
   if (!m.sample) LS.set('mm2.current', m.id);
@@ -1375,12 +1646,12 @@ function buildMaps(body, fromMenu) {
   if (name) name.addEventListener('change', () => { const v = name.value.trim(); if (v && v !== map.name) { map.name = v.slice(0, 80); markDirty(); renderHeader(); listMaps(body); } });
   body.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', async () => {
     const a = b.dataset.m;
-    if (a === 'new') { closeSheet(); $('#menunew').click(); }
+    if (a === 'new') openNewMap(pageReturn);
     else if (a === 'dup') { await flushSave(); const c = normalize(clone(map)); c.id = uid(); c.name = (map.name + ' copy').slice(0, 80); delete c.sample; openMap(c); await saveNow(); refreshSheet(); toast('Duplicated. You are now editing the copy.'); }
     else if (a === 'png') exportPNG();
     else if (a === 'json') exportJSON();
     else if (a === 'import') $('#importfile').click();
-    else if (a === 'example') { await flushSave(); openMap(sampleMap()); closeSheet(); hideMenu(); }
+    else if (a === 'example') { await flushSave(); openMap(sampleMap()); closeAll(); hideMenu(); }
   }));
   listMaps(body);
 }
@@ -1399,7 +1670,7 @@ async function listMaps(body) {
       <button class="btn danger" data-delmap="${esc(e.id)}" aria-label="Delete map">${ic('del')}</button>
     </div>`).join('');
   el.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', async () => {
-    if (b.dataset.open === map.id || await openMapById(b.dataset.open)) { closeSheet(); hideMenu(); }
+    if (b.dataset.open === map.id || await openMapById(b.dataset.open)) { closeAll(); hideMenu(); }
   }));
   el.querySelectorAll('[data-delmap]').forEach(b => b.addEventListener('click', () => armButton(b, 'Delete?', async () => {
     const id = b.dataset.delmap;
@@ -1412,7 +1683,7 @@ async function listMaps(body) {
     refreshSheet();
   })));
 }
-$('#mapbtn').addEventListener('click', () => openSheet('Maps', b => buildMaps(b, false)));
+$('#mapbtn').addEventListener('click', () => openPage('Maps', b => buildMaps(b, false), 'editor'));
 $('#importfile').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0]; e.target.value = '';
   if (!f) return;
@@ -1422,7 +1693,7 @@ $('#importfile').addEventListener('change', e => {
       const m = normalize(JSON.parse(r.result));
       await flushSave();
       m.id = uid(); delete m.sample; m.updated = Date.now();
-      openMap(m); await saveNow(); closeSheet(); hideMenu();
+      openMap(m); await saveNow(); closeAll(); hideMenu();
       toast(`Opened “${m.name}” from the backup file.`);
     } catch { toast('That file isn’t a map backup. Pick a .json file saved from this app.'); }
   };
@@ -1437,7 +1708,7 @@ async function offerFile(filename, data) {
     toast(e && e.code === 'rate_limited' ? 'A save is already waiting for you to confirm.' : 'The file couldn’t be saved here.');
   }
 }
-function exportJSON() { offerFile(`${slug(map.name)}.json`, JSON.stringify(map, null, 1)); }
+function exportJSON() { map.enemyTypes = usedTypes(map); offerFile(`${slug(map.name)}.json`, JSON.stringify(map, null, 1)); }
 function exportPNG() {
   const items = map.items.filter(i => i.floor === map.activeFloor);
   const b = itemsBounds(items) || { x0: -10, y0: -10, x1: 10, y1: 10 };
@@ -1503,62 +1774,27 @@ function buildFloors(body) {
   body.querySelector('#f-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
 }
 
-/* Enemy types */
-$('#edittypes').addEventListener('click', () => openSheet('Enemy types', buildTypes));
-function buildTypes(body) {
-  body.innerHTML = `
-    <section>
-      <p>Rename a type or change its color. Every enemy of that type on the map updates with it. Players are always blue.</p>
-      <div class="list">${map.enemyTypes.map(t => {
-        const n = map.items.filter(i => i.kind === 'enemy' && i.type === t.id).length;
-        return `<div class="lrow" style="flex-wrap:wrap">
-          <div class="grow" style="min-width:140px"><input class="field" data-tname="${esc(t.id)}" value="${esc(t.name)}" maxlength="24" aria-label="Enemy type name"></div>
-          <span class="s muted mono" style="font-size:12px">${n} placed</span>
-          <button class="btn danger" data-deltype="${esc(t.id)}" aria-label="Delete type"${map.enemyTypes.length === 1 ? ' disabled' : ''}>${ic('del')}</button>
-          <div class="swatches" style="flex-basis:100%">${ENEMY_COLORS.map(c => `<button class="sw" data-tcolor="${esc(t.id)}|${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === t.color}"></button>`).join('')}</div>
-        </div>`; }).join('')}</div>
-      <div class="btnrow"><button class="btn primary" id="t-add">${ic('plus')}Add enemy type</button></div>
-    </section>`;
-  body.querySelectorAll('[data-tname]').forEach(inp => inp.addEventListener('change', () => {
-    const t = map.enemyTypes.find(x => x.id === inp.dataset.tname), v = inp.value.trim().slice(0, 24);
-    if (t && v && v !== t.name) mutate(() => { t.name = v; }); else inp.value = t ? t.name : '';
-  }));
-  body.querySelectorAll('[data-tcolor]').forEach(b => b.addEventListener('click', () => {
-    const [id, c] = b.dataset.tcolor.split('|'), t = map.enemyTypes.find(x => x.id === id);
-    if (t) { mutate(() => { t.color = c; }); refreshSheet(); }
-  }));
-  body.querySelectorAll('[data-deltype]').forEach(b => b.addEventListener('click', () => {
-    const id = b.dataset.deltype, n = map.items.filter(i => i.kind === 'enemy' && i.type === id).length;
-    armButton(b, n ? `Delete + ${n} enemies?` : 'Delete?', () => {
-      mutate(() => { map.enemyTypes = map.enemyTypes.filter(t => t.id !== id); map.items = map.items.filter(i => !(i.kind === 'enemy' && i.type === id)); });
-      if (tool === 'enemy:' + id) tool = 'select';
-      if (!selected()) selectedId = null;
-      renderAll(); refreshSheet();
-    });
-  }));
-  body.querySelector('#t-add').addEventListener('click', () => {
-    const used = new Set(map.enemyTypes.map(t => t.color));
-    const color = ENEMY_COLORS.find(c => !used.has(c)) || ENEMY_COLORS[map.enemyTypes.length % ENEMY_COLORS.length];
-    mutate(() => map.enemyTypes.push({ id: uid(), name: `Enemy ${map.enemyTypes.length + 1}`, color }));
-    refreshSheet();
-    const inputs = body.querySelectorAll('[data-tname]'); const last = inputs[inputs.length - 1]; if (last) { last.focus(); last.select(); }
-  });
-}
+$('#edittypes').addEventListener('click', () => openPage('Bestiary', buildBestiary, 'editor'));
 
 /* ---------- toolbar, keys, toast ---------- */
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 $('#snapbtn').addEventListener('click', () => { settings.snap = !settings.snap; saveSettings(); renderTools(); toast(settings.snap ? `Snap on: ${settings.step} m steps and ${settings.rotStep}° turns.` : 'Snap off: free placement.'); });
 $('#fitbtn').addEventListener('click', fitView);
+$('#lockmap').addEventListener('click', () => {
+  map.locked = !map.locked; selectedId = null; tool = 'select'; livePre = null;
+  markDirty(); renderAll();
+  toast(map.locked ? 'Map locked. Nothing can be moved until you unlock it.' : 'Map unlocked.');
+});
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
-  if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (!menuOpen()) { selectedId = null; setTool('select'); } return; }
-  if (menuOpen() || sheetEl) return;
+  if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (pageBuild) closePage(); else if (!menuOpen()) { selectedId = null; setTool('select'); } return; }
+  if (menuOpen() || sheetEl || pageBuild) return;
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected()) { e.preventDefault(); const id = selectedId; mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected() && !selected().locked) { e.preventDefault(); const id = selectedId; mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
 });
 let toastTimer = null, toastEl = null;
 function toast(msg) {
@@ -1574,6 +1810,7 @@ new MutationObserver(readTheme).observe(document.documentElement, { attributes: 
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
 
 (function boot() {
+  Bestiary.load();
   const lastId = LS.get('mm2.current');
   let m = null;
   if (lastId) { try { m = normalize(Store.loadLocal(lastId)); } catch { m = null; } }
@@ -1581,6 +1818,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDra
   if (m) setStatus('Saved on this device', 'ok');
   Store.init().then(async () => {
     if (!Store.cloud) return;
+    Bestiary.sync();
     const list = await Store.listCloud();
     const newest = list.sort((a, b) => (b.updated || 0) - (a.updated || 0))[0];
     if (!edits && newest && (map.sample || (newest.updated || 0) > (map.updated || 0)) && newest.id !== map.id) {
