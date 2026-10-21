@@ -1,0 +1,1323 @@
+<title>FPS Map Designer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one full-height workspace. Top bar, then the map canvas, then the enemy tray + tool dock.
+   Properties slide up over the bottom of the canvas when something is selected. */
+:root {
+  --bg: #e4e9ee;
+  --surface: #fbfcfd;
+  --surface-2: #eef2f5;
+  --fg: #17212b;
+  --muted: #5a6776;
+  --line: #d2d9e1;
+  --accent: #0d8a7c;
+  --accent-fg: #ffffff;
+  --accent-soft: #d4efea;
+  --warn: #c98a0a;
+  --danger: #d23c41;
+  --grid-bg: #f4f6f8;
+  --grid-minor: #e2e7ec;
+  --grid-major: #c4cdd7;
+  --enemy-ring: #ffffff;
+  --is-dark: 0;
+  --shadow: 0 6px 24px rgba(20, 32, 44, .14);
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1117; --surface: #141b23; --surface-2: #1b242e; --fg: #e3e9ef; --muted: #8b98a7; --line: #27323e;
+    --accent: #2fc4ae; --accent-fg: #052520; --accent-soft: #11362f; --warn: #e3a52a; --danger: #f0575c;
+    --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --enemy-ring: #0c1117; --is-dark: 1;
+    --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1117; --surface: #141b23; --surface-2: #1b242e; --fg: #e3e9ef; --muted: #8b98a7; --line: #27323e;
+  --accent: #2fc4ae; --accent-fg: #052520; --accent-soft: #11362f; --warn: #e3a52a; --danger: #f0575c;
+  --grid-bg: #0f151b; --grid-minor: #18212a; --grid-major: #26313d; --enemy-ring: #0c1117; --is-dark: 1;
+  --shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font: 400 14px/1.4 var(--font-body);
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* Top bar */
+.top {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.mapbtn { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; background: none; border: 0; padding: 2px 0; text-align: left; }
+.eyebrow { font: 600 10px/1.2 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.eyebrow .tag { color: var(--warn); }
+.mapname { font: 600 18px/1.2 var(--font-display); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.mapname svg { width: 16px; height: 16px; color: var(--muted); }
+.status { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.status[data-state="ok"] i { background: var(--accent); }
+.status[data-state="pending"] i { background: var(--warn); }
+.status[data-state="err"] i { background: var(--danger); }
+.iconbtn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); }
+.iconbtn:disabled { opacity: .35; cursor: default; }
+
+/* Stage */
+.stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+.floors {
+  position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; align-items: stretch; width: 92px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+}
+.floors button { border: 0; background: none; display: grid; place-items: center; padding: 6px 4px; }
+.floors button:disabled { opacity: .3; cursor: default; }
+.floors .fname { border-block: 1px solid var(--line); padding: 6px 6px; gap: 1px; }
+.floors .fname b { font: 600 12px/1.15 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; overflow-wrap: anywhere; }
+.floors .fname small { font: 500 10px var(--font-mono); color: var(--muted); }
+.hint {
+  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); right: 116px; width: fit-content; max-width: calc(100% - 128px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px;
+  font-size: 12.5px; color: var(--fg); box-shadow: var(--shadow); pointer-events: none;
+}
+.scale {
+  position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: 12px; display: flex; align-items: center; gap: 6px;
+  font: 500 11px var(--font-mono); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px;
+}
+.scale .sq { width: 12px; height: 12px; border: 1.5px solid var(--muted); border-radius: 2px; }
+
+/* Properties panel */
+.panel {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; margin-inline: auto; max-width: 560px; max-height: 58%;
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+}
+.panel-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line); }
+.panel-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.panel-title strong { font: 600 16px var(--font-display); }
+.panel-title .dims { font-size: 12px; color: var(--muted); }
+.panel-actions { display: flex; gap: 4px; }
+.panel-actions button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 9px; background: var(--surface-2); }
+.panel-actions button.danger { color: var(--danger); }
+.panel-actions button.armed { width: auto; padding: 0 10px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 600; }
+.panel-body { display: grid; gap: 12px; padding: 12px 14px 14px; }
+.prow { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 10px; }
+.prow > .lbl { font: 600 11px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.ctrl input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); height: 28px; }
+.ctrl output { min-width: 84px; font: 500 13px var(--font-mono); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 7px 14px; font-weight: 500; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.stepper span { padding: 0 2px 0 9px; font: 600 11px var(--font-display); color: var(--muted); }
+.stepper button { width: 32px; height: 34px; border: 0; background: var(--surface-2); font-size: 18px; line-height: 1; }
+.stepper input, .num input { width: 56px; height: 34px; border: 0; background: none; color: var(--fg); text-align: center; font: 500 13px var(--font-mono); -moz-appearance: textfield; }
+.num { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 9px; }
+.num span { padding-left: 9px; font: 600 11px var(--font-display); color: var(--muted); }
+.num input { width: 70px; }
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.lockbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--muted); }
+.lockbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); padding: 0; }
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.typechip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; }
+.typechip i { width: 20px; height: 20px; border-radius: 50%; }
+.typechip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Dock */
+.dock {
+  flex: none; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  display: grid; gap: 6px;
+}
+.trayhead { display: flex; align-items: center; justify-content: space-between; }
+.trayhead .eyebrow button { background: none; border: 0; color: var(--accent); font: inherit; letter-spacing: inherit; text-transform: inherit; padding: 4px 0 4px 8px; }
+.tray { display: flex; gap: 8px; overflow-x: auto; touch-action: pan-x; scrollbar-width: none; padding: 2px 0 4px; }
+.tray::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 5px 13px 5px 5px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; touch-action: pan-x; user-select: none; -webkit-user-select: none;
+}
+.chip i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--font-display); font-style: normal; box-shadow: 0 0 0 2px var(--enemy-ring) inset; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.tools { display: flex; gap: 4px; }
+.tool {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; border: 0; border-radius: 10px; background: none; color: var(--muted);
+  font: 600 10.5px var(--font-display); letter-spacing: .06em; text-transform: uppercase;
+}
+.tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.tool.sep { margin-left: 6px; }
+.ghost { position: fixed; z-index: 50; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; box-shadow: 0 0 0 3px var(--enemy-ring), var(--shadow); pointer-events: none; display: grid; place-items: center; font: 600 15px var(--font-display); }
+
+/* Sheets */
+.backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(8, 14, 20, .45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet {
+  width: 100%; max-width: 560px; max-height: 88%; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.sheet-head { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
+.sheet-head h2 { margin: 0; font: 600 20px var(--font-display); }
+.sheet section { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.sheet h3 { margin: 0; font: 600 11px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.sheet p { margin: 0; color: var(--muted); font-size: 13px; max-width: 60ch; }
+.field { width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 0 12px; font: 500 15px var(--font-body); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-fg); }
+.btn.danger { color: var(--danger); }
+.btn.armed { background: var(--danger); color: #fff; border-color: transparent; }
+.btn svg { width: 17px; height: 17px; }
+.list { display: grid; gap: 6px; }
+.lrow { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); min-width: 0; }
+.lrow.current { border-color: var(--accent); }
+.lrow .grow { flex: 1; min-width: 0; }
+.lrow .open { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 2px 0; }
+.lrow .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow .s { font-size: 12px; color: var(--muted); }
+.lrow .field { height: 36px; }
+.lrow .sw { width: 24px; height: 24px; }
+.pill { font: 600 10px var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.toggle { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+.toast {
+  position: fixed; z-index: 60; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .panel, .sheet { animation: rise .16s ease-out; }
+  @keyframes rise { from { transform: translateY(12px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+@media (min-width: 720px) {
+  .tool { flex-direction: row; justify-content: center; gap: 8px; font-size: 11.5px; padding: 9px 6px; }
+}
+</style>
+
+<header class="top">
+  <button class="mapbtn" id="mapbtn" aria-label="Open maps menu">
+    <span class="eyebrow">FPS Map Designer <span class="tag" id="sampletag" hidden>Example</span></span>
+    <span class="mapname"><span id="mapname">Map</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
+  </button>
+  <button class="status" id="status" data-state="ok" aria-live="polite"><i></i><span id="statustext">Ready</span></button>
+  <button class="iconbtn" id="undo" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
+  <button class="iconbtn" id="redo" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
+</header>
+
+<main class="stage" id="stage">
+  <canvas id="map" aria-label="Map canvas"></canvas>
+  <div class="hint" id="hint" hidden></div>
+  <div class="floors" id="floors">
+    <button id="floorup" aria-label="Go up a floor"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+    <button class="fname" id="floorname" aria-label="Manage floors"><b id="floorlabel">Ground</b><small id="floorcount">1 / 1</small></button>
+    <button id="floordown" aria-label="Go down a floor"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+  </div>
+  <div class="scale" id="scale"><span class="sq"></span><span id="scaletext">= 1 m</span></div>
+  <div class="panel" id="panel" hidden></div>
+</main>
+
+<footer class="dock">
+  <div class="trayhead">
+    <span class="eyebrow">Enemies · drag up onto the map</span>
+    <span class="eyebrow"><button id="edittypes">Edit types</button></span>
+  </div>
+  <div class="tray" id="tray"></div>
+  <div class="tools" id="tools">
+    <button class="tool" data-tool="select" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg>Select</button>
+    <button class="tool" data-tool="circle" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-16 0a8 8 0 1 1 16 0z"/></svg>Circle</button>
+    <button class="tool" data-tool="poly" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>Polygon</button>
+    <button class="tool sep" id="snapbtn" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 12h16M12 4v16"/></svg>Snap</button>
+    <button class="tool" id="fitbtn"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fit</button>
+  </div>
+</footer>
+
+<input type="file" id="importfile" accept=".json,application/json" hidden>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- constants ---------- */
+const SNAP = { pos: 0.5, size: 0.5, rot: 15 };
+const MIN_SIZE = 0.25;
+const ENEMY_R = 0.45;            // metres; roughly a person's footprint
+const MIN_SCALE = 2, MAX_SCALE = 160;
+const MAX_SIDES = 12;
+const SHAPE_COLORS = [
+  { name: 'Concrete', hex: '#8f99a5' }, { name: 'Wall', hex: '#4b5664' }, { name: 'Sand', hex: '#c2a878' },
+  { name: 'Wood', hex: '#8c6b4a' }, { name: 'Foliage', hex: '#5f9a5b' }, { name: 'Water', hex: '#3d84c6' },
+];
+const ENEMY_COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#8e4ec6', '#d6409f', '#3e63dd', '#8db600'];
+const DEFAULT_TYPES = [
+  { id: 'grunt', name: 'Grunt', color: '#e5484d' }, { id: 'sniper', name: 'Sniper', color: '#f76b15' },
+  { id: 'heavy', name: 'Heavy', color: '#8e4ec6' }, { id: 'scout', name: 'Scout', color: '#ffc53d' },
+];
+const POLY_NAMES = { 3: 'Triangle', 4: 'Square', 5: 'Pentagon', 6: 'Hexagon', 7: 'Heptagon', 8: 'Octagon', 9: 'Nonagon', 10: 'Decagon', 11: 'Hendecagon', 12: 'Dodecagon' };
+const ICON = {
+  dup: '<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
+  del: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  front: '<path d="M12 4v12M7 9l5-5 5 5M5 20h14"/>',
+  back: '<path d="M12 20V8M7 15l5 5 5-5M5 4h14"/>',
+  lock: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  image: '<path d="M4 5h16v14H4z"/><path d="M4 16l5-5 4 4 3-3 4 4"/>',
+  save: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  open: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
+};
+const ic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 8);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const snapTo = (v, s) => Math.round(v / s) * s;
+const round2 = v => Math.round(v * 100) / 100;
+const fmt = v => { const r = Math.round(v * 10) / 10; return (Object.is(r, -0) ? 0 : r).toFixed(1); };
+const rad = d => d * Math.PI / 180;
+const deg = r => r * 180 / Math.PI;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const slug = s => (String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'map').slice(0, 60);
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mix(h, to, t) { const a = hexRgb(h), b = hexRgb(to); return 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')'; }
+function textOn(h) { const [r, g, b] = hexRgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#111820' : '#ffffff'; }
+function ago(ts) {
+  if (!ts) return '';
+  const s = (Date.now() - ts) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+  return new Date(ts).toLocaleDateString();
+}
+const LS = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+
+/* ---------- map model ---------- */
+function blankMap(name) {
+  const g = { id: uid(), name: 'Ground' };
+  return { app: 'fps-map-designer', v: 1, id: uid(), name, floors: [g], activeFloor: g.id, items: [],
+    enemyTypes: DEFAULT_TYPES.map(t => ({ ...t })), lastSides: 4, lastColor: SHAPE_COLORS[0].hex, updated: Date.now() };
+}
+function sampleMap() {
+  const m = blankMap('Example: Warehouse');
+  m.sample = true;
+  const g = m.floors[0], up = { id: uid(), name: 'Floor 1' };
+  m.floors.push(up);
+  const [CON, WALL, SAND, WOOD, LEAF, WATER] = SHAPE_COLORS.map(c => c.hex);
+  const S = (f, o) => m.items.push({ id: uid(), floor: f.id, kind: 'poly', x: 0, y: 0, w: 4, h: 4, rot: 0, sides: 4, color: CON, lock: false, ...o });
+  const E = (f, type, x, y) => m.items.push({ id: uid(), floor: f.id, kind: 'enemy', type, x, y });
+  // ground floor: a 30 x 20 m warehouse with a door on the east side
+  S(g, { x: 0, y: -10, w: 30.5, h: 0.5, color: WALL });
+  S(g, { x: 0, y: 10, w: 30.5, h: 0.5, color: WALL });
+  S(g, { x: -15, y: 0, w: 0.5, h: 20, color: WALL });
+  S(g, { x: 15, y: -6, w: 0.5, h: 8, color: WALL });
+  S(g, { x: 15, y: 6, w: 0.5, h: 8, color: WALL });
+  S(g, { x: -9, y: -6, w: 2, h: 2, color: SAND });
+  S(g, { x: -7, y: -6, w: 2, h: 2, color: SAND });
+  S(g, { x: -9, y: -4, w: 2, h: 2, color: SAND });
+  S(g, { x: 6.5, y: 5, w: 3, h: 2, rot: 15, color: SAND });
+  [-5, 0, 5].forEach(x => S(g, { kind: 'circle', x, y: -1, w: 1, h: 1, lock: true, color: CON }));
+  S(g, { x: -1, y: 5.5, w: 5, h: 5, sides: 6, color: CON });
+  S(g, { x: 10, y: -6, w: 4, h: 4, sides: 8, color: WATER });
+  S(g, { kind: 'circle', x: 20, y: -6, w: 3, h: 3, lock: true, color: LEAF });
+  S(g, { kind: 'circle', x: 21, y: 3, w: 4, h: 4, lock: true, color: LEAF });
+  S(g, { x: 19.5, y: 8, w: 3, h: 3, sides: 3, color: LEAF });
+  E(g, 'grunt', -3, -6); E(g, 'grunt', 3, -7); E(g, 'heavy', -1, 5.5); E(g, 'grunt', 9, 6); E(g, 'scout', 18, 0);
+  // floor 1: a catwalk along the north wall and a landing on the west side
+  S(up, { x: 0, y: -8.5, w: 29, h: 2.5, color: WOOD });
+  S(up, { x: -12.5, y: -4, w: 4, h: 6, color: WOOD });
+  E(up, 'sniper', -9, -8.5); E(up, 'sniper', 9, -8.5); E(up, 'sniper', -12.5, -3);
+  return m;
+}
+function normalize(m) {
+  if (!m || typeof m !== 'object') throw new Error('not a map');
+  if (!Array.isArray(m.floors) || !m.floors.length) m.floors = [{ id: uid(), name: 'Ground' }];
+  m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor') }));
+  if (!m.floors.some(f => f.id === m.activeFloor)) m.activeFloor = m.floors[0].id;
+  if (!Array.isArray(m.enemyTypes) || !m.enemyTypes.length) m.enemyTypes = DEFAULT_TYPES.map(t => ({ ...t }));
+  m.enemyTypes = m.enemyTypes.map(t => ({ id: String(t.id || uid()), name: String(t.name || 'Enemy'), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : ENEMY_COLORS[0] }));
+  const floorIds = new Set(m.floors.map(f => f.id));
+  const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy'].includes(i.kind)).map(i => {
+    const o = { id: String(i.id || uid()), floor: i.floor, kind: i.kind, x: num(i.x, 0), y: num(i.y, 0) };
+    if (i.kind === 'enemy') { o.type = m.enemyTypes.some(t => t.id === i.type) ? i.type : m.enemyTypes[0].id; return o; }
+    return Object.assign(o, { w: Math.max(MIN_SIZE, num(i.w, 4)), h: Math.max(MIN_SIZE, num(i.h, 4)), rot: num(i.rot, 0), sides: clamp(Math.round(num(i.sides, 4)), 3, MAX_SIDES), color: /^#[0-9a-f]{6}$/i.test(i.color) ? i.color : SHAPE_COLORS[0].hex, lock: !!i.lock });
+  });
+  m.id = String(m.id || uid());
+  m.name = String(m.name || 'Untitled map').slice(0, 80);
+  m.lastSides = clamp(Math.round(num(m.lastSides, 4)), 3, MAX_SIDES);
+  m.lastColor = m.lastColor || SHAPE_COLORS[0].hex;
+  m.updated = num(m.updated, Date.now());
+  m.app = 'fps-map-designer'; m.v = 1;
+  return m;
+}
+
+/* ---------- storage: Claude account (db) when available, this browser always ---------- */
+const Store = {
+  db: null, uid: null, dl: null, cloud: false,
+  async init() {
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    try {
+      const [db, user, dl] = await Promise.all([claude.use('db'), claude.use('user'), claude.use('downloads')]);
+      this.dl = dl;
+      if (db && user) { const id = await user.id(); if (id) { this.db = db; this.uid = id; this.cloud = true; } }
+    } catch {}
+  },
+  meta(m) { return { id: m.id, name: m.name, updated: m.updated, count: m.items.length, floors: m.floors.length }; },
+  localIndex() { try { const v = JSON.parse(LS.get('mm2.index') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+  saveLocal(m) {
+    if (!LS.set('mm2.map.' + m.id, JSON.stringify(m))) return false;
+    const ix = this.localIndex().filter(e => e.id !== m.id); ix.push(this.meta(m));
+    LS.set('mm2.index', JSON.stringify(ix)); LS.set('mm2.current', m.id);
+    return true;
+  },
+  loadLocal(id) { try { const s = LS.get('mm2.map.' + id); return s ? JSON.parse(s) : null; } catch { return null; } },
+  delLocal(id) { LS.del('mm2.map.' + id); LS.set('mm2.index', JSON.stringify(this.localIndex().filter(e => e.id !== id))); },
+  col() { return this.db.collection('data/users/' + this.uid); },
+  async saveCloud(m, retry = true) {
+    if (!this.cloud) return false;
+    try { await this.col().doc(m.id).set({ ...this.meta(m), json: JSON.stringify(m) }); return true; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === 'unavailable' && retry) { await new Promise(r => setTimeout(r, 600 + Math.random() * 600)); return this.saveCloud(m, false); }
+      if (code === 'quota_exceeded') toast('Your account storage for maps is full. Delete a few old maps to keep saving there.');
+      else if (code !== 'unavailable' && code !== 'resource_exhausted') this.cloud = false;
+      return false;
+    }
+  },
+  async listCloud() {
+    if (!this.cloud) return [];
+    try { const s = await this.col().get(); return s.docs.map(d => { const x = d.data() || {}; return { id: d.id, name: x.name, updated: x.updated, count: x.count, floors: x.floors }; }); }
+    catch { return []; }
+  },
+  async loadCloud(id) {
+    if (!this.cloud) return null;
+    try { const s = await this.col().doc(id).get(); return s.exists ? JSON.parse(s.data().json) : null; } catch { return null; }
+  },
+  async del(id) { this.delLocal(id); if (this.cloud) { try { await this.col().doc(id).delete(); } catch {} } },
+  async listAll() {
+    const by = new Map();
+    for (const e of this.localIndex()) by.set(e.id, e);
+    for (const e of await this.listCloud()) { const p = by.get(e.id); if (!p || (e.updated || 0) >= (p.updated || 0)) by.set(e.id, e); }
+    return [...by.values()].sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  },
+  async load(id) {
+    const l = this.loadLocal(id), c = await this.loadCloud(id);
+    if (l && c) return (c.updated || 0) > (l.updated || 0) ? c : l;
+    return c || l;
+  },
+};
+
+/* ---------- state ---------- */
+let map = null;
+let view = { W: 0, H: 0, cx: 0, cy: 0, s: 24 };   // cx/cy: world point at screen centre; s: px per metre
+let dpr = 1, fitted = false;
+let selectedId = null;
+let tool = 'select';                              // 'select' | 'circle' | 'poly' | 'enemy:<typeId>'
+let snap = LS.get('mm2.snap') !== '0';
+let showBelow = LS.get('mm2.below') !== '0';
+let history = [], future = [];
+let livePre = null;
+let edits = 0;
+let T = {};
+
+const canvas = $('#map'), ctx = canvas.getContext('2d'), stage = $('#stage'), panel = $('#panel');
+
+const floorIndex = () => Math.max(0, map.floors.findIndex(f => f.id === map.activeFloor));
+const byId = id => map.items.find(i => i.id === id);
+const selected = () => (selectedId && byId(selectedId)) || null;
+const typeOf = id => map.enemyTypes.find(t => t.id === id) || map.enemyTypes[0];
+function shapeName(it) {
+  if (it.kind === 'enemy') return typeOf(it.type).name;
+  const sq = Math.abs(it.w - it.h) < 0.01;
+  if (it.kind === 'circle') return sq ? 'Circle' : 'Ellipse';
+  if (it.sides === 4 && !sq) return 'Rectangle';
+  return POLY_NAMES[it.sides];
+}
+
+/* ---------- history ---------- */
+const serialize = () => JSON.stringify({ floors: map.floors, items: map.items, enemyTypes: map.enemyTypes, activeFloor: map.activeFloor });
+function restore(s) {
+  const o = JSON.parse(s);
+  Object.assign(map, o);
+  if (!selected()) selectedId = null;
+  if (tool.startsWith('enemy:') && !map.enemyTypes.some(t => 'enemy:' + t.id === tool)) tool = 'select';
+}
+function commit(pre) {
+  history.push(pre); if (history.length > 150) history.shift();
+  future = [];
+  markDirty();
+}
+function mutate(fn) {
+  const pre = serialize();
+  fn();
+  if (serialize() !== pre) commit(pre);
+  renderAll();
+}
+function undo() { if (!history.length) return; future.push(serialize()); restore(history.pop()); markDirty(); renderAll(); }
+function redo() { if (!future.length) return; history.push(serialize()); restore(future.pop()); markDirty(); renderAll(); }
+
+/* ---------- saving ---------- */
+let saveTimer = null, saving = false, saveAgain = false;
+function setStatus(text, state) { $('#statustext').textContent = text; $('#status').dataset.state = state; }
+function markDirty() {
+  map.updated = Date.now();
+  if (map.sample) { delete map.sample; renderHeader(); }
+  edits++;
+  setStatus('Unsaved', 'pending');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 900);
+}
+async function saveNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (saving) { saveAgain = true; return; }
+  saving = true;
+  setStatus('Saving…', 'pending');
+  const m = map;
+  const local = Store.saveLocal(m);
+  const cloud = await Store.saveCloud(m);
+  saving = false;
+  if (saveAgain) { saveAgain = false; return saveNow(); }
+  if (cloud) setStatus('Saved', 'ok');
+  else if (local) setStatus('Saved on this device', 'ok');
+  else setStatus('Not saved', 'err');
+}
+async function flushSave() { if (saveTimer || saving) await saveNow(); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) saveNow(); });
+$('#status').addEventListener('click', () => {
+  const st = $('#status').dataset.state;
+  if (st === 'err') toast('This browser is blocking storage, so nothing is being kept. Save a backup file from the Maps menu.');
+  else if (Store.cloud) toast('Maps save to your Claude account as you work, so they are there whenever you open this page.');
+  else toast('Maps save in this browser only. Save a backup file from the Maps menu now and then.');
+});
+
+/* ---------- geometry ---------- */
+const polyCache = {};
+function unitPoly(n) {
+  if (polyCache[n]) return polyCache[n];
+  const off = n % 2 === 0 ? Math.PI / n : 0;
+  let pts = [];
+  for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + off + 2 * Math.PI * k / n; pts.push([Math.cos(a), Math.sin(a)]); }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  pts = pts.map(([x, y]) => [(x - (x0 + x1) / 2) / (x1 - x0), (y - (y0 + y1) / 2) / (y1 - y0)]);
+  return (polyCache[n] = pts);
+}
+const localPts = it => unitPoly(it.sides).map(([u, v]) => [u * it.w, v * it.h]);
+function toLocal(it, x, y) { const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a), dx = x - it.x, dy = y - it.y; return [dx * c + dy * s, -dx * s + dy * c]; }
+function toWorld(it, lx, ly) { const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a); return [it.x + lx * c - ly * s, it.y + lx * s + ly * c]; }
+const w2s = (R, x, y) => [(x - R.cx) * R.s + R.W / 2, (y - R.cy) * R.s + R.H / 2];
+const s2w = (R, x, y) => [(x - R.W / 2) / R.s + R.cx, (y - R.H / 2) / R.s + R.cy];
+function pointInPoly(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function distSeg(px, py, [ax, ay], [bx, by]) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+  const t = L ? clamp(((px - ax) * dx + (py - ay) * dy) / L, 0, 1) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+const enemyPx = R => Math.max(ENEMY_R * R.s, 8);
+function hitShape(it, x, y, pad) {
+  const [lx, ly] = toLocal(it, x, y);
+  if (it.kind === 'circle') { const a = it.w / 2 + pad, b = it.h / 2 + pad; return (lx * lx) / (a * a) + (ly * ly) / (b * b) <= 1; }
+  const pts = localPts(it);
+  if (pointInPoly(lx, ly, pts)) return true;
+  return pts.some((p, i) => distSeg(lx, ly, p, pts[(i + 1) % pts.length]) <= pad);
+}
+function hitItem(x, y) {
+  const list = map.items.filter(i => i.floor === map.activeFloor), pad = 10 / view.s;
+  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (it.kind === 'enemy' && Math.hypot(x - it.x, y - it.y) <= enemyPx(view) / view.s + pad) return it; }
+  for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; if (it.kind !== 'enemy' && hitShape(it, x, y, pad)) return it; }
+  return null;
+}
+const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+function handles(R, it) {
+  const corners = CORNERS.map(([sx, sy]) => { const [wx, wy] = toWorld(it, sx * it.w / 2, sy * it.h / 2); const [x, y] = w2s(R, wx, wy); return { x, y, sx, sy }; });
+  const [tx, ty] = toWorld(it, 0, -it.h / 2), [mx, my] = w2s(R, tx, ty), a = rad(it.rot);
+  return { corners, top: { x: mx, y: my }, rot: { x: mx + Math.sin(a) * 34, y: my - Math.cos(a) * 34 } };
+}
+function hitHandle(it, p) {
+  const H = handles(view, it), near = q => Math.hypot(q.x - p.x, q.y - p.y) <= 22;
+  if (near(H.rot)) return { type: 'rotate' };
+  for (const c of H.corners) if (near(c)) {
+    const [ax, ay] = toWorld(it, -c.sx * it.w / 2, -c.sy * it.h / 2);
+    return { type: 'resize', sx: c.sx, sy: c.sy, ax, ay, w0: it.w, h0: it.h };
+  }
+  return null;
+}
+function itemsBounds(items) {
+  if (!items.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const it of items) {
+    const r = it.kind === 'enemy' ? ENEMY_R : Math.hypot(it.w, it.h) / 2;
+    x0 = Math.min(x0, it.x - r); y0 = Math.min(y0, it.y - r); x1 = Math.max(x1, it.x + r); y1 = Math.max(y1, it.y + r);
+  }
+  return { x0, y0, x1, y1 };
+}
+
+/* ---------- drawing ---------- */
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  T = { gridBg: g('--grid-bg'), minor: g('--grid-minor'), major: g('--grid-major'), accent: g('--accent'), surface: g('--surface'),
+    fg: g('--fg'), muted: g('--muted'), ring: g('--enemy-ring'), dark: g('--is-dark') === '1', display: g('--font-display'), mono: g('--font-mono') };
+  requestDraw();
+}
+let drawQueued = false;
+function requestDraw() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); } }
+function draw() {
+  if (!map || !view.W) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const minor = drawScene(ctx, view, true);
+  $('#scaletext').textContent = `= ${minor} m`;
+}
+function drawScene(c, R, withSelection) {
+  c.fillStyle = T.gridBg; c.fillRect(0, 0, R.W, R.H);
+  const minor = drawGrid(c, R);
+  const fi = floorIndex();
+  if (showBelow && fi > 0) { c.save(); c.globalAlpha = 0.2; drawItems(c, R, map.floors[fi - 1].id); c.restore(); }
+  drawItems(c, R, map.activeFloor);
+  if (withSelection) drawSelection(c, R);
+  return minor;
+}
+function drawGrid(c, R) {
+  const minor = [1, 5, 25, 125].find(s => s * R.s >= 7) || 125, major = minor * 5;
+  const x0 = R.cx - R.W / 2 / R.s, x1 = R.cx + R.W / 2 / R.s, y0 = R.cy - R.H / 2 / R.s, y1 = R.cy + R.H / 2 / R.s;
+  const lines = (step, color) => {
+    c.beginPath();
+    for (let k = Math.ceil(x0 / step); k <= Math.floor(x1 / step); k++) { const sx = Math.round((k * step - R.cx) * R.s + R.W / 2) + 0.5; c.moveTo(sx, 0); c.lineTo(sx, R.H); }
+    for (let k = Math.ceil(y0 / step); k <= Math.floor(y1 / step); k++) { const sy = Math.round((k * step - R.cy) * R.s + R.H / 2) + 0.5; c.moveTo(0, sy); c.lineTo(R.W, sy); }
+    c.strokeStyle = color; c.lineWidth = 1; c.stroke();
+  };
+  lines(minor, T.minor); lines(major, T.major);
+  return minor;
+}
+function drawItems(c, R, floorId) {
+  const list = map.items.filter(i => i.floor === floorId);
+  for (const it of list) if (it.kind !== 'enemy') drawShape(c, R, it);
+  for (const it of list) if (it.kind === 'enemy') drawEnemy(c, R, it);
+}
+function shapePath(c, R, it) {
+  c.beginPath();
+  if (it.kind === 'circle') c.ellipse(0, 0, it.w / 2 * R.s, it.h / 2 * R.s, 0, 0, Math.PI * 2);
+  else { localPts(it).forEach(([x, y], k) => k ? c.lineTo(x * R.s, y * R.s) : c.moveTo(x * R.s, y * R.s)); c.closePath(); }
+}
+function drawShape(c, R, it) {
+  const [sx, sy] = w2s(R, it.x, it.y);
+  c.save(); c.translate(sx, sy); c.rotate(rad(it.rot));
+  shapePath(c, R, it);
+  c.fillStyle = it.color; c.fill();
+  c.lineWidth = 1.5; c.strokeStyle = T.dark ? mix(it.color, '#ffffff', 0.35) : mix(it.color, '#000000', 0.35); c.stroke();
+  c.restore();
+}
+function drawEnemy(c, R, it) {
+  const t = typeOf(it.type), [sx, sy] = w2s(R, it.x, it.y), r = enemyPx(R);
+  c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2);
+  c.fillStyle = t.color; c.fill();
+  c.lineWidth = 2; c.strokeStyle = T.ring; c.stroke();
+  if (r >= 9) {
+    c.fillStyle = textOn(t.color); c.font = `600 ${Math.round(r * 1.05)}px ${T.display}`;
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText((t.name.trim()[0] || '?').toUpperCase(), sx, sy + 1);
+  }
+}
+function dot(c, x, y, filled) {
+  c.beginPath(); c.arc(x, y, filled ? 8 : 7, 0, Math.PI * 2);
+  c.fillStyle = filled ? T.accent : T.surface; c.fill();
+  c.lineWidth = 2; c.strokeStyle = T.accent; c.stroke();
+}
+function drawSelection(c, R) {
+  const it = selected(); if (!it) return;
+  c.save();
+  c.strokeStyle = T.accent; c.lineWidth = 2;
+  if (it.kind === 'enemy') {
+    const [sx, sy] = w2s(R, it.x, it.y);
+    c.beginPath(); c.arc(sx, sy, enemyPx(R) + 5, 0, Math.PI * 2); c.stroke();
+    c.restore(); return;
+  }
+  const H = handles(R, it);
+  c.beginPath(); H.corners.forEach((p, k) => k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.closePath();
+  c.setLineDash([6, 4]); c.lineWidth = 1.5; c.stroke(); c.setLineDash([]);
+  c.beginPath(); c.moveTo(H.top.x, H.top.y); c.lineTo(H.rot.x, H.rot.y); c.stroke();
+  H.corners.forEach(p => dot(c, p.x, p.y, false));
+  dot(c, H.rot.x, H.rot.y, true);
+  // live measurement under the shape
+  const label = G && G.type === 'rotate' ? `${Math.round(it.rot)}°` : dimsText(it);
+  const lowest = Math.max(...H.corners.map(p => p.y)), [cx] = w2s(R, it.x, it.y);
+  c.font = `500 12px ${T.mono}`;
+  const w = c.measureText(label).width + 14, y = Math.min(lowest + 12, R.H - 28);
+  c.fillStyle = T.surface; c.strokeStyle = T.accent; c.lineWidth = 1;
+  c.beginPath(); c.roundRect ? c.roundRect(cx - w / 2, y, w, 22, 6) : c.rect(cx - w / 2, y, w, 22); c.fill(); c.stroke();
+  c.fillStyle = T.fg; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, cx, y + 11.5);
+  c.restore();
+}
+function dimsText(it) {
+  if (it.kind === 'circle' && Math.abs(it.w - it.h) < 0.01) return `Ø ${fmt(it.w)} m`;
+  return `${fmt(it.w)} × ${fmt(it.h)} m`;
+}
+
+/* ---------- view ---------- */
+function fitView() {
+  const b = itemsBounds(map.items.filter(i => i.floor === map.activeFloor));
+  if (!b || !view.W) { view.cx = 0; view.cy = 0; view.s = 24; requestDraw(); return; }
+  const pad = 3, wM = b.x1 - b.x0 + pad * 2, hM = b.y1 - b.y0 + pad * 2;
+  view.s = clamp(Math.min(view.W / wM, (view.H - 40) / hM), MIN_SCALE, 60);
+  view.cx = (b.x0 + b.x1) / 2; view.cy = (b.y0 + b.y1) / 2;
+  requestDraw();
+}
+function zoomAt(px, py, factor) {
+  const [wx, wy] = s2w(view, px, py);
+  view.s = clamp(view.s * factor, MIN_SCALE, MAX_SCALE);
+  view.cx = wx - (px - view.W / 2) / view.s; view.cy = wy - (py - view.H / 2) / view.s;
+  requestDraw();
+}
+new ResizeObserver(() => {
+  const r = stage.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  view.W = r.width; view.H = r.height;
+  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+  if (!fitted && map && view.W) { fitted = true; fitView(); }
+  draw();
+}).observe(stage);
+
+/* ---------- canvas gestures ---------- */
+const pointers = new Map();
+let G = null;
+function evPos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function cancelItemGesture() {
+  if (G && G.pre && G.changed) restore(G.pre);
+  G = null; syncPanel();
+}
+canvas.addEventListener('pointerdown', e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch {}
+  const p = evPos(e);
+  pointers.set(e.pointerId, p);
+  if (pointers.size === 2) {
+    cancelItemGesture();
+    const [a, b] = [...pointers.values()], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    G = { type: 'pinch', d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), s0: view.s, world: s2w(view, mid.x, mid.y) };
+    return;
+  }
+  if (pointers.size > 2) return;
+  const [wx, wy] = s2w(view, p.x, p.y);
+  if (tool !== 'select') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
+  const sel = selected();
+  if (sel && sel.kind !== 'enemy') {
+    const h = hitHandle(sel, p);
+    if (h) { G = { ...h, id: sel.id, pre: serialize(), start: p, changed: false }; return; }
+  }
+  const hit = hitItem(wx, wy);
+  if (hit) {
+    if (selectedId !== hit.id) { selectedId = hit.id; livePre = null; renderPanel(); }
+    G = { type: 'move', id: hit.id, pre: serialize(), ox: wx - hit.x, oy: wy - hit.y, start: p, changed: false };
+    requestDraw(); return;
+  }
+  G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false };
+});
+canvas.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const p = evPos(e);
+  pointers.set(e.pointerId, p);
+  if (!G) return;
+  if (G.type === 'pinch') {
+    if (pointers.size < 2) return;
+    const [a, b] = [...pointers.values()], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    view.s = clamp(G.s0 * Math.hypot(a.x - b.x, a.y - b.y) / G.d0, MIN_SCALE, MAX_SCALE);
+    view.cx = G.world[0] - (mid.x - view.W / 2) / view.s; view.cy = G.world[1] - (mid.y - view.H / 2) / view.s;
+    requestDraw(); return;
+  }
+  const dist = Math.hypot(p.x - G.start.x, p.y - G.start.y);
+  if (G.type === 'place' && dist > 8) { G.type = 'pan'; G.moved = true; }
+  if (G.type === 'pan') {
+    if (dist > 6) G.moved = true;
+    if (G.moved) { view.cx = G.vx - (p.x - G.start.x) / view.s; view.cy = G.vy - (p.y - G.start.y) / view.s; requestDraw(); }
+    return;
+  }
+  const it = byId(G.id); if (!it) return;
+  const [wx, wy] = s2w(view, p.x, p.y);
+  if (G.type === 'move') {
+    if (!G.changed && dist < 5) return;
+    let nx = wx - G.ox, ny = wy - G.oy;
+    if (snap) { nx = snapTo(nx, SNAP.pos); ny = snapTo(ny, SNAP.pos); }
+    if (nx !== it.x || ny !== it.y) { it.x = round2(nx); it.y = round2(ny); G.changed = true; }
+  } else if (G.type === 'resize') {
+    const a = rad(it.rot), c = Math.cos(a), s = Math.sin(a), dx = wx - G.ax, dy = wy - G.ay;
+    const lx = (dx * c + dy * s) * G.sx, ly = (-dx * s + dy * c) * G.sy;
+    let w, h;
+    if (it.lock) {
+      const k = Math.max(MIN_SIZE / Math.min(G.w0, G.h0), (lx / G.w0 + ly / G.h0) / 2);
+      w = G.w0 * k; h = G.h0 * k;
+      if (snap) { const f = Math.max(SNAP.size, snapTo(w, SNAP.size)) / w; w *= f; h *= f; }
+    } else {
+      w = Math.max(MIN_SIZE, lx); h = Math.max(MIN_SIZE, ly);
+      if (snap) { w = Math.max(SNAP.size, snapTo(w, SNAP.size)); h = Math.max(SNAP.size, snapTo(h, SNAP.size)); }
+    }
+    w = round2(w); h = round2(h);
+    const hx = G.sx * w / 2, hy = G.sy * h / 2;
+    it.x = round2(G.ax + hx * c - hy * s); it.y = round2(G.ay + hx * s + hy * c); it.w = w; it.h = h;
+    G.changed = true;
+  } else if (G.type === 'rotate') {
+    let ang = deg(Math.atan2(wy - it.y, wx - it.x)) + 90;
+    ang = snap ? snapTo(ang, SNAP.rot) : Math.round(ang);
+    it.rot = ((ang % 360) + 360) % 360;
+    G.changed = true;
+  }
+  requestDraw(); syncPanel();
+});
+function endPointer(e) {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if (G && G.type === 'pinch') {
+    if (pointers.size === 1) { const [p] = [...pointers.values()]; G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: true }; }
+    else if (!pointers.size) G = null;
+    return;
+  }
+  if (pointers.size) return;
+  const g = G; G = null;
+  if (!g) return;
+  const up = e.type === 'pointerup';
+  if (g.type === 'place' && up) { const p = evPos(e); placeAt(...s2w(view, p.x, p.y)); }
+  else if (g.type === 'pan' && !g.moved && up) { if (selectedId) { selectedId = null; renderPanel(); } }
+  else if (g.pre && g.changed) { commit(g.pre); renderPanel(); }
+  requestDraw();
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e => { e.preventDefault(); const p = evPos(e); zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+
+/* ---------- placing things ---------- */
+function newShape(kind, x, y) {
+  const base = { id: uid(), floor: map.activeFloor, kind, x, y, rot: 0, color: map.lastColor, sides: map.lastSides };
+  return kind === 'circle' ? { ...base, w: 3, h: 3, lock: true } : { ...base, w: 4, h: 4, lock: false };
+}
+function placeAt(x, y) {
+  if (snap) { x = snapTo(x, SNAP.pos); y = snapTo(y, SNAP.pos); }
+  x = round2(x); y = round2(y);
+  if (tool === 'circle' || tool === 'poly') {
+    const it = newShape(tool, x, y);
+    mutate(() => map.items.push(it));
+    selectedId = it.id; livePre = null; setTool('select');
+  } else if (tool.startsWith('enemy:')) {
+    placeEnemy(tool.slice(6), x, y);
+  }
+}
+function placeEnemy(type, x, y) {
+  if (snap) { x = snapTo(x, SNAP.pos); y = snapTo(y, SNAP.pos); }
+  mutate(() => map.items.push({ id: uid(), floor: map.activeFloor, kind: 'enemy', type, x: round2(x), y: round2(y) }));
+}
+function setTool(t) {
+  tool = t;
+  if (t !== 'select' && selectedId) { selectedId = null; }
+  renderAll();
+}
+
+/* ---------- enemy tray (tap to arm, drag up to drop) ---------- */
+const tray = $('#tray');
+let trayDrag = null, ghost = null;
+function showGhost(type, x, y) {
+  const t = typeOf(type);
+  ghost = document.createElement('div');
+  ghost.className = 'ghost';
+  ghost.style.background = t.color; ghost.style.color = textOn(t.color);
+  ghost.textContent = (t.name.trim()[0] || '?').toUpperCase();
+  document.body.appendChild(ghost);
+  moveGhost(x, y);
+}
+function moveGhost(x, y) { if (ghost) { ghost.style.left = x + 'px'; ghost.style.top = (y - 44) + 'px'; } }
+function endTrayDrag() { if (ghost) ghost.remove(); ghost = null; trayDrag = null; }
+tray.addEventListener('pointerdown', e => {
+  const chip = e.target.closest('[data-type]'); if (!chip) return;
+  trayDrag = { id: e.pointerId, type: chip.dataset.type, x: e.clientX, y: e.clientY, chip, dragging: false };
+});
+window.addEventListener('pointermove', e => {
+  if (!trayDrag || e.pointerId !== trayDrag.id) return;
+  const dx = e.clientX - trayDrag.x, dy = e.clientY - trayDrag.y;
+  if (!trayDrag.dragging) {
+    if (dy < -10 && Math.abs(dy) > Math.abs(dx)) {
+      trayDrag.dragging = true;
+      try { trayDrag.chip.setPointerCapture(e.pointerId); } catch {}
+      showGhost(trayDrag.type, e.clientX, e.clientY);
+    } else return;
+  }
+  moveGhost(e.clientX, e.clientY);
+});
+window.addEventListener('pointerup', e => {
+  if (!trayDrag || e.pointerId !== trayDrag.id) return;
+  const d = trayDrag;
+  if (d.dragging) {
+    const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - 44 - r.top;
+    if (x >= 0 && y >= 0 && x <= r.width && y <= r.height) {
+      placeEnemy(d.type, ...s2w(view, x, y));
+      toast(`${typeOf(d.type).name} placed on ${map.floors[floorIndex()].name}`);
+    }
+  } else if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) {
+    setTool(tool === 'enemy:' + d.type ? 'select' : 'enemy:' + d.type);
+  }
+  endTrayDrag();
+});
+window.addEventListener('pointercancel', e => { if (trayDrag && e.pointerId === trayDrag.id) endTrayDrag(); });
+
+/* ---------- rendering UI ---------- */
+function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools(); renderPanel(); updateHint(); updateUndo(); requestDraw(); }
+function renderHeader() {
+  $('#mapname').textContent = map.name;
+  $('#sampletag').hidden = !map.sample;
+}
+function updateUndo() { $('#undo').disabled = !history.length; $('#redo').disabled = !future.length; }
+function renderFloors() {
+  const fi = floorIndex(), f = map.floors[fi];
+  $('#floorlabel').textContent = f.name;
+  $('#floorcount').textContent = `${fi + 1} / ${map.floors.length}`;
+  $('#floorup').disabled = fi >= map.floors.length - 1;
+  $('#floordown').disabled = fi <= 0;
+}
+function renderTray() {
+  tray.innerHTML = map.enemyTypes.map(t => {
+    const n = (t.name.trim()[0] || '?').toUpperCase();
+    return `<button class="chip" data-type="${esc(t.id)}" aria-pressed="${tool === 'enemy:' + t.id}"><i style="background:${t.color};color:${textOn(t.color)}">${esc(n)}</i>${esc(t.name)}</button>`;
+  }).join('');
+}
+function renderTools() {
+  document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
+  $('#snapbtn').setAttribute('aria-pressed', String(snap));
+}
+function updateHint() {
+  const h = $('#hint');
+  let text = '';
+  if (tool === 'circle') text = 'Tap the map to place a circle.';
+  else if (tool === 'poly') text = `Tap the map to place a ${POLY_NAMES[map.lastSides].toLowerCase()}.`;
+  else if (tool.startsWith('enemy:')) { const t = typeOf(tool.slice(6)); text = `Tap the map to drop ${t.name} enemies. Tap ${t.name} again to stop.`; }
+  else if (!map.items.some(i => i.floor === map.activeFloor)) text = 'This floor is empty. Pick Circle or Polygon, or drag an enemy up onto the map.';
+  h.textContent = text; h.hidden = !text;
+}
+
+/* ---------- properties panel ---------- */
+let panelKey = null;
+function renderPanel() {
+  const it = selected();
+  panel.hidden = !it;
+  if (!it) { panel.innerHTML = ''; panelKey = null; return; }
+  const key = it.id + ':' + it.kind + ':' + (it.kind === 'enemy' ? map.enemyTypes.map(t => t.id + t.name + t.color).join() : '');
+  if (key !== panelKey) { panel.innerHTML = it.kind === 'enemy' ? enemyPanel(it) : shapePanel(it); bindPanel(it); panelKey = key; }
+  syncPanel();
+}
+const headHTML = (extra) => `
+  <div class="panel-head">
+    <div class="panel-title"><strong data-b="name"></strong><span class="dims mono" data-b="dims"></span></div>
+    <div class="panel-actions">
+      ${extra}
+      <button data-act="dup" aria-label="Duplicate">${ic('dup')}</button>
+      <button data-act="del" class="danger" aria-label="Delete">${ic('del')}</button>
+      <button data-act="close" aria-label="Close">${ic('close')}</button>
+    </div>
+  </div>`;
+const posRow = `
+  <div class="prow"><span class="lbl">Position</span><div class="ctrl">
+    <label class="num"><span>X</span><input id="p-x" type="number" inputmode="decimal" step="0.5"></label>
+    <label class="num"><span>Y</span><input id="p-y" type="number" inputmode="decimal" step="0.5"></label>
+    <span class="muted mono" style="font-size:12px">m</span>
+  </div></div>`;
+function shapePanel(it) {
+  return headHTML(`<button data-act="back" aria-label="Send to back">${ic('back')}</button><button data-act="front" aria-label="Bring to front">${ic('front')}</button>`) + `
+  <div class="panel-body">
+    <div class="prow"><span class="lbl">Shape</span><div class="ctrl"><div class="seg">
+      <button data-kind="circle">Circle</button><button data-kind="poly">Polygon</button>
+    </div></div></div>
+    ${it.kind === 'poly' ? `<div class="prow"><label class="lbl" for="p-sides">Sides</label><div class="ctrl">
+      <input type="range" id="p-sides" min="3" max="${MAX_SIDES}" step="1"><output data-b="sides"></output>
+    </div></div>` : ''}
+    <div class="prow"><span class="lbl">Size</span><div class="ctrl">
+      <div class="stepper"><span>W</span><button data-step="w:-1" aria-label="Narrower">−</button><input id="p-w" type="number" inputmode="decimal" step="0.5" aria-label="Width in metres"><button data-step="w:1" aria-label="Wider">+</button></div>
+      <div class="stepper"><span>H</span><button data-step="h:-1" aria-label="Shorter">−</button><input id="p-h" type="number" inputmode="decimal" step="0.5" aria-label="Height in metres"><button data-step="h:1" aria-label="Taller">+</button></div>
+      <button class="lockbtn" data-act="lock" aria-label="Keep proportions">${ic('lock')}</button>
+    </div></div>
+    <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl">
+      <input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output>
+    </div></div>
+    <div class="prow"><span class="lbl">Color</span><div class="ctrl"><div class="swatches">
+      ${SHAPE_COLORS.map(c => `<button class="sw" data-color="${c.hex}" style="background:${c.hex}" aria-label="${c.name}" title="${c.name}"></button>`).join('')}
+    </div></div></div>
+    ${posRow}
+  </div>`;
+}
+function enemyPanel(it) {
+  return headHTML('') + `
+  <div class="panel-body">
+    <div class="prow"><span class="lbl">Type</span><div class="ctrl">
+      ${map.enemyTypes.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
+    </div></div>
+    ${posRow}
+  </div>`;
+}
+function liveInput(el, apply) {
+  el.addEventListener('input', () => { if (livePre === null) livePre = serialize(); apply(+el.value); requestDraw(); syncPanel(); });
+  el.addEventListener('change', () => { if (livePre !== null) { const pre = livePre; livePre = null; if (pre !== serialize()) commit(pre); renderAll(); } });
+}
+function bindPanel(it) {
+  const id = it.id, cur = () => byId(id);
+  panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+    const x = cur(); if (!x) return;
+    const act = b.dataset.act;
+    if (act === 'close') { selectedId = null; renderAll(); }
+    else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
+    else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; mutate(() => map.items.push(c)); selectedId = c.id; renderAll(); }
+    else if (act === 'front' || act === 'back') mutate(() => { map.items = map.items.filter(i => i.id !== id); act === 'front' ? map.items.push(x) : map.items.unshift(x); });
+    else if (act === 'lock') mutate(() => { x.lock = !x.lock; });
+  }));
+  panel.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
+    const x = cur(); if (!x || x.kind === b.dataset.kind) return;
+    mutate(() => { x.kind = b.dataset.kind; if (!x.sides) x.sides = map.lastSides; });
+  }));
+  panel.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => {
+    const x = cur(); if (!x) return;
+    map.lastColor = b.dataset.color; mutate(() => { x.color = b.dataset.color; });
+  }));
+  panel.querySelectorAll('[data-settype]').forEach(b => b.addEventListener('click', () => {
+    const x = cur(); if (!x) return; mutate(() => { x.type = b.dataset.settype; });
+  }));
+  panel.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+    const x = cur(); if (!x) return;
+    const [dim, dir] = b.dataset.step.split(':');
+    mutate(() => setSize(x, dim, round2(x[dim] + +dir * SNAP.size)));
+  }));
+  const sides = panel.querySelector('#p-sides');
+  if (sides) liveInput(sides, v => { const x = cur(); if (x) { x.sides = v; map.lastSides = v; } });
+  const rot = panel.querySelector('#p-rot');
+  if (rot) liveInput(rot, v => { const x = cur(); if (x) x.rot = snap ? snapTo(v, SNAP.rot) % 360 : v; });
+  const numIn = (sel, apply) => { const el = panel.querySelector(sel); if (el) el.addEventListener('change', () => { const v = parseFloat(el.value); const x = cur(); if (x && Number.isFinite(v)) mutate(() => apply(x, round2(v))); else syncPanel(); }); };
+  numIn('#p-w', (x, v) => setSize(x, 'w', v));
+  numIn('#p-h', (x, v) => setSize(x, 'h', v));
+  numIn('#p-x', (x, v) => { x.x = v; });
+  numIn('#p-y', (x, v) => { x.y = v; });
+}
+function setSize(x, dim, v) {
+  v = Math.max(MIN_SIZE, v);
+  if (x.lock) { const k = v / x[dim]; x.w = round2(x.w * k); x.h = round2(x.h * k); }
+  else x[dim] = v;
+}
+function syncPanel() {
+  const it = selected(); if (!it || panel.hidden) return;
+  const set = (sel, v) => { const el = panel.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
+  const txt = (b, v) => { const el = panel.querySelector(`[data-b="${b}"]`); if (el) el.textContent = v; };
+  txt('name', shapeName(it));
+  set('#p-x', round2(it.x)); set('#p-y', round2(it.y));
+  if (it.kind === 'enemy') {
+    txt('dims', map.floors[floorIndex()].name);
+    panel.querySelectorAll('[data-settype]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.settype === it.type)));
+    return;
+  }
+  txt('dims', dimsText(it));
+  set('#p-sides', it.sides); txt('sides', `${it.sides} · ${POLY_NAMES[it.sides]}`);
+  set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`);
+  set('#p-w', round2(it.w)); set('#p-h', round2(it.h));
+  panel.querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === it.kind)));
+  panel.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === it.color.toLowerCase())));
+  const lock = panel.querySelector('[data-act="lock"]'); if (lock) lock.setAttribute('aria-pressed', String(!!it.lock));
+}
+
+/* ---------- sheets ---------- */
+let sheetEl = null, sheetBuild = null;
+function openSheet(title, build) {
+  closeSheet();
+  sheetBuild = build;
+  sheetEl = document.createElement('div');
+  sheetEl.className = 'backdrop';
+  sheetEl.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-head"><h2>${esc(title)}</h2><button class="iconbtn" data-close aria-label="Close">${ic('close')}</button></div><div class="sheet-body"></div></div>`;
+  sheetEl.addEventListener('click', e => { if (e.target === sheetEl || e.target.closest('[data-close]')) closeSheet(); });
+  document.body.appendChild(sheetEl);
+  refreshSheet();
+}
+function refreshSheet() { if (sheetEl && sheetBuild) sheetBuild(sheetEl.querySelector('.sheet-body')); }
+function closeSheet() { if (sheetEl) sheetEl.remove(); sheetEl = null; sheetBuild = null; }
+function armButton(btn, label, onConfirm) {
+  if (btn.dataset.armed) { onConfirm(); return; }
+  const old = btn.innerHTML;
+  btn.dataset.armed = '1'; btn.classList.add('armed'); btn.textContent = label;
+  setTimeout(() => { if (btn.isConnected && btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = old; } }, 3500);
+}
+
+/* Maps */
+async function openMapById(id) {
+  await flushSave();
+  const m = await Store.load(id);
+  if (!m) { toast('That map could not be opened.'); return; }
+  openMap(normalize(m));
+}
+function openMap(m) {
+  map = m; history = []; future = []; livePre = null; selectedId = null; tool = 'select'; edits = 0;
+  LS.set('mm2.current', m.id);
+  fitted = !!view.W; fitView();
+  setStatus(Store.cloud ? 'Saved' : 'Saved on this device', 'ok');
+  renderAll();
+}
+async function newMapNamed(name) {
+  await flushSave();
+  const m = blankMap(name);
+  openMap(m); await saveNow();
+}
+function buildMaps(body) {
+  const dlOk = !!Store.dl;
+  body.innerHTML = `
+    <section style="border-top:0;padding-top:0">
+      <h3>Current map</h3>
+      <input class="field" id="m-name" maxlength="80" aria-label="Map name" value="${esc(map.name)}">
+      <div class="btnrow">
+        <button class="btn primary" data-m="new">${ic('plus')}New map</button>
+        <button class="btn" data-m="dup">${ic('dup')}Duplicate</button>
+      </div>
+    </section>
+    <section>
+      <h3>Files</h3>
+      <div class="btnrow">
+        ${dlOk ? `<button class="btn" data-m="png">${ic('image')}Save image of this floor</button><button class="btn" data-m="json">${ic('save')}Save backup file</button>` : ''}
+        <button class="btn" data-m="import">${ic('open')}Open backup file</button>
+      </div>
+      <p>${Store.cloud ? 'Maps save to your Claude account automatically. A backup file is a copy you can keep anywhere.' : 'Maps are saved in this browser only. Save a backup file now and then so a cleared browser can’t take them with it.'}${dlOk ? '' : ' Saving files isn’t available in this view.'}</p>
+    </section>
+    <section>
+      <h3>Your maps</h3>
+      <div class="list" id="m-list"><p>Loading…</p></div>
+    </section>`;
+  const name = body.querySelector('#m-name');
+  name.addEventListener('change', () => { const v = name.value.trim(); if (v && v !== map.name) { map.name = v.slice(0, 80); markDirty(); renderHeader(); listMaps(body); } });
+  body.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', async () => {
+    const a = b.dataset.m;
+    if (a === 'new') { await newMapNamed('New map'); closeSheet(); toast('New map created. Rename it from the Maps menu.'); }
+    else if (a === 'dup') { await flushSave(); const c = normalize(clone(map)); c.id = uid(); c.name = (map.name + ' copy').slice(0, 80); delete c.sample; openMap(c); await saveNow(); refreshSheet(); toast('Duplicated. You are now editing the copy.'); }
+    else if (a === 'png') exportPNG();
+    else if (a === 'json') exportJSON();
+    else if (a === 'import') $('#importfile').click();
+  }));
+  listMaps(body);
+}
+async function listMaps(body) {
+  const list = await Store.listAll();
+  const el = body.querySelector('#m-list'); if (!el) return;
+  if (!list.some(e => e.id === map.id)) list.unshift({ ...Store.meta(map), unsaved: true });
+  el.innerHTML = list.map(e => `
+    <div class="lrow${e.id === map.id ? ' current' : ''}">
+      <div class="grow"><button class="open" data-open="${esc(e.id)}">
+        <div class="t">${esc(e.name || 'Untitled map')}</div>
+        <div class="s">${e.count ?? 0} items · ${e.floors ?? 1} floor${(e.floors ?? 1) === 1 ? '' : 's'}${e.updated ? ' · ' + ago(e.updated) : ''}</div>
+      </button></div>
+      ${e.id === map.id ? '<span class="pill">Open</span>' : ''}
+      <button class="btn danger" data-delmap="${esc(e.id)}" aria-label="Delete map">${ic('del')}</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', async () => {
+    if (b.dataset.open === map.id) { closeSheet(); return; }
+    await openMapById(b.dataset.open); closeSheet();
+  }));
+  el.querySelectorAll('[data-delmap]').forEach(b => b.addEventListener('click', () => armButton(b, 'Delete?', async () => {
+    const id = b.dataset.delmap;
+    await Store.del(id);
+    if (id === map.id) {
+      clearTimeout(saveTimer); saveTimer = null;
+      const rest = (await Store.listAll()).filter(e => e.id !== id);
+      if (rest.length) await openMapById(rest[0].id); else await newMapNamed('New map');
+    }
+    refreshSheet();
+  })));
+}
+$('#mapbtn').addEventListener('click', () => openSheet('Maps', buildMaps));
+$('#importfile').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = async () => {
+    try {
+      const m = normalize(JSON.parse(r.result));
+      await flushSave();
+      m.id = uid(); delete m.sample; m.updated = Date.now();
+      openMap(m); await saveNow(); closeSheet();
+      toast(`Opened “${m.name}” from the backup file.`);
+    } catch { toast('That file isn’t a map backup. Pick a .json file saved from this app.'); }
+  };
+  r.readAsText(f);
+});
+
+async function offerFile(filename, data) {
+  if (!Store.dl) { toast('Saving files isn’t available in this view.'); return; }
+  try { await Store.dl.save({ filename, data }); toast('File saved.'); }
+  catch (e) {
+    if (e && e.code === 'declined') return;
+    toast(e && e.code === 'rate_limited' ? 'A save is already waiting for you to confirm.' : 'The file couldn’t be saved here.');
+  }
+}
+function exportJSON() { offerFile(`${slug(map.name)}.json`, JSON.stringify(map, null, 1)); }
+function exportPNG() {
+  const items = map.items.filter(i => i.floor === map.activeFloor);
+  const b = itemsBounds(items) || { x0: -10, y0: -10, x1: 10, y1: 10 };
+  const pad = 3, wM = b.x1 - b.x0 + pad * 2, hM = b.y1 - b.y0 + pad * 2;
+  const s = clamp(1800 / Math.max(wM, hM), 8, 60), foot = 44;
+  const W = Math.ceil(wM * s), H = Math.ceil(hM * s);
+  const c = document.createElement('canvas'); c.width = W; c.height = H + foot;
+  const x = c.getContext('2d');
+  drawScene(x, { W, H, cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, s }, false);
+  x.fillStyle = T.surface; x.fillRect(0, H, W, foot);
+  x.fillStyle = T.fg; x.font = `600 18px ${T.display}`; x.textBaseline = 'middle'; x.textAlign = 'left';
+  const floor = map.floors[floorIndex()].name;
+  x.fillText(`${map.name} — ${floor}`, 14, H + foot / 2);
+  x.fillStyle = T.muted; x.font = `500 14px ${T.mono}`; x.textAlign = 'right';
+  const minor = [1, 5, 25, 125].find(v => v * s >= 7) || 125;
+  x.fillText(`1 square = ${minor} m`, W - 14, H + foot / 2);
+  c.toBlob(blob => { if (blob) offerFile(`${slug(map.name)}-${slug(floor)}.png`, blob); else toast('The image couldn’t be made.'); }, 'image/png');
+}
+
+/* Floors */
+function switchFloor(id) { map.activeFloor = id; selectedId = null; livePre = null; renderAll(); LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
+$('#floorup').addEventListener('click', () => { const i = floorIndex(); if (i < map.floors.length - 1) switchFloor(map.floors[i + 1].id); });
+$('#floordown').addEventListener('click', () => { const i = floorIndex(); if (i > 0) switchFloor(map.floors[i - 1].id); });
+$('#floorname').addEventListener('click', () => openSheet('Floors', buildFloors));
+function buildFloors(body) {
+  const rows = map.floors.map((f, i) => ({ f, i })).reverse();
+  body.innerHTML = `
+    <section style="border-top:0;padding-top:0">
+      <p>Top floor first. The floor below the one you are on shows faintly so you can line things up.</p>
+      <div class="btnrow"><button class="btn" data-f="above">${ic('plus')}Add floor on top</button><button class="btn" data-f="below">${ic('plus')}Add basement</button></div>
+      <div class="list">${rows.map(({ f }) => {
+        const n = map.items.filter(it => it.floor === f.id).length, cur = f.id === map.activeFloor;
+        return `<div class="lrow${cur ? ' current' : ''}">
+          <div class="grow"><input class="field" data-fname="${esc(f.id)}" value="${esc(f.name)}" maxlength="30" aria-label="Floor name"></div>
+          <span class="s muted mono" style="font-size:12px">${n}</span>
+          ${cur ? '<span class="pill">Here</span>' : `<button class="btn" data-go="${esc(f.id)}">Go</button>`}
+          <button class="btn danger" data-delfloor="${esc(f.id)}" aria-label="Delete floor"${map.floors.length === 1 ? ' disabled' : ''}>${ic('del')}</button>
+        </div>`; }).join('')}</div>
+      <label class="toggle"><input type="checkbox" id="f-below"${showBelow ? ' checked' : ''}>Show the floor below, faded</label>
+    </section>`;
+  body.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => {
+    const above = b.dataset.f === 'above';
+    const f = { id: uid(), name: above ? `Floor ${map.floors.length}` : (map.floors.some(x => x.name === 'Basement') ? `Basement ${map.floors.filter(x => x.name.startsWith('Basement')).length + 1}` : 'Basement') };
+    mutate(() => { above ? map.floors.push(f) : map.floors.unshift(f); map.activeFloor = f.id; });
+    selectedId = null; renderAll(); refreshSheet();
+  }));
+  body.querySelectorAll('[data-fname]').forEach(inp => inp.addEventListener('change', () => {
+    const f = map.floors.find(x => x.id === inp.dataset.fname), v = inp.value.trim().slice(0, 30);
+    if (f && v && v !== f.name) mutate(() => { f.name = v; }); else inp.value = f ? f.name : '';
+  }));
+  body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { switchFloor(b.dataset.go); refreshSheet(); }));
+  body.querySelectorAll('[data-delfloor]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.delfloor, n = map.items.filter(it => it.floor === id).length;
+    armButton(b, n ? `Delete + ${n} items?` : 'Delete?', () => {
+      mutate(() => {
+        const i = map.floors.findIndex(f => f.id === id);
+        map.floors = map.floors.filter(f => f.id !== id);
+        map.items = map.items.filter(it => it.floor !== id);
+        if (map.activeFloor === id) map.activeFloor = map.floors[Math.max(0, i - 1)].id;
+      });
+      selectedId = null; renderAll(); refreshSheet();
+    });
+  }));
+  body.querySelector('#f-below').addEventListener('change', e => { showBelow = e.target.checked; LS.set('mm2.below', showBelow ? '1' : '0'); requestDraw(); });
+}
+
+/* Enemy types */
+$('#edittypes').addEventListener('click', () => openSheet('Enemy types', buildTypes));
+function buildTypes(body) {
+  body.innerHTML = `
+    <section style="border-top:0;padding-top:0">
+      <p>Rename a type or change its color. Every enemy of that type on the map updates with it.</p>
+      <div class="list">${map.enemyTypes.map(t => {
+        const n = map.items.filter(i => i.kind === 'enemy' && i.type === t.id).length;
+        return `<div class="lrow" style="flex-wrap:wrap">
+          <div class="grow" style="min-width:140px"><input class="field" data-tname="${esc(t.id)}" value="${esc(t.name)}" maxlength="24" aria-label="Enemy type name"></div>
+          <span class="s muted mono" style="font-size:12px">${n} placed</span>
+          <button class="btn danger" data-deltype="${esc(t.id)}" aria-label="Delete type"${map.enemyTypes.length === 1 ? ' disabled' : ''}>${ic('del')}</button>
+          <div class="swatches" style="flex-basis:100%">${ENEMY_COLORS.map(c => `<button class="sw" data-tcolor="${esc(t.id)}|${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === t.color}"></button>`).join('')}</div>
+        </div>`; }).join('')}</div>
+      <div class="btnrow"><button class="btn primary" id="t-add">${ic('plus')}Add enemy type</button></div>
+    </section>`;
+  body.querySelectorAll('[data-tname]').forEach(inp => inp.addEventListener('change', () => {
+    const t = map.enemyTypes.find(x => x.id === inp.dataset.tname), v = inp.value.trim().slice(0, 24);
+    if (t && v && v !== t.name) mutate(() => { t.name = v; }); else inp.value = t ? t.name : '';
+  }));
+  body.querySelectorAll('[data-tcolor]').forEach(b => b.addEventListener('click', () => {
+    const [id, c] = b.dataset.tcolor.split('|'), t = map.enemyTypes.find(x => x.id === id);
+    if (t) { mutate(() => { t.color = c; }); refreshSheet(); }
+  }));
+  body.querySelectorAll('[data-deltype]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.deltype, n = map.items.filter(i => i.kind === 'enemy' && i.type === id).length;
+    armButton(b, n ? `Delete + ${n} enemies?` : 'Delete?', () => {
+      mutate(() => { map.enemyTypes = map.enemyTypes.filter(t => t.id !== id); map.items = map.items.filter(i => !(i.kind === 'enemy' && i.type === id)); });
+      if (tool === 'enemy:' + id) tool = 'select';
+      if (!selected()) selectedId = null;
+      renderAll(); refreshSheet();
+    });
+  }));
+  body.querySelector('#t-add').addEventListener('click', () => {
+    const used = new Set(map.enemyTypes.map(t => t.color));
+    const color = ENEMY_COLORS.find(c => !used.has(c)) || ENEMY_COLORS[map.enemyTypes.length % ENEMY_COLORS.length];
+    mutate(() => map.enemyTypes.push({ id: uid(), name: `Enemy ${map.enemyTypes.length + 1}`, color }));
+    refreshSheet();
+    const inputs = body.querySelectorAll('[data-tname]'); const last = inputs[inputs.length - 1]; if (last) { last.focus(); last.select(); }
+  });
+}
+
+/* ---------- toolbar, keys, toast ---------- */
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('#snapbtn').addEventListener('click', () => { snap = !snap; LS.set('mm2.snap', snap ? '1' : '0'); renderTools(); toast(snap ? 'Snap on: 0.5 m steps and 15° turns.' : 'Snap off: free placement.'); });
+$('#fitbtn').addEventListener('click', fitView);
+$('#undo').addEventListener('click', undo);
+$('#redo').addEventListener('click', redo);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea')) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected()) { e.preventDefault(); const id = selectedId; mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
+  else if (e.key === 'Escape') { if (sheetEl) closeSheet(); else { selectedId = null; setTool('select'); } }
+});
+let toastTimer = null, toastEl = null;
+function toast(msg) {
+  if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+  toastEl.textContent = msg; toastEl.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
+}
+const clone = o => JSON.parse(JSON.stringify(o));
+
+/* ---------- start ---------- */
+readTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTheme);
+new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
+
+(function boot() {
+  const lastId = LS.get('mm2.current');
+  let m = null;
+  if (lastId) { try { m = normalize(Store.loadLocal(lastId)); } catch { m = null; } }
+  openMap(m || sampleMap());
+  setStatus(m ? 'Saved on this device' : 'Example', 'ok');
+  Store.init().then(async () => {
+    if (!Store.cloud) { if (m) setStatus('Saved on this device', 'ok'); return; }
+    const list = await Store.listCloud();
+    const newest = list.sort((a, b) => (b.updated || 0) - (a.updated || 0))[0];
+    if (!edits && newest && (newest.updated || 0) > (map.updated || 0) && newest.id !== map.id) {
+      const cm = await Store.loadCloud(newest.id);
+      if (cm && !edits) { try { openMap(normalize(cm)); return; } catch {} }
+    }
+    if (!map.sample && !list.some(e => e.id === map.id)) saveNow();
+    else if (!map.sample) setStatus('Saved', 'ok');
+  });
+})();
+})();
+</script>
