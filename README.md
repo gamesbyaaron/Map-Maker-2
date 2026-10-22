@@ -4,9 +4,12 @@ A top-down FPS map designer for phones, used to block out levels before rebuildi
 
 The whole app is one file: `map-designer.html`. It's published as a private Claude artifact and runs in the phone's browser.
 
-## What it does (v3)
+## What it does (v4)
 
 - Main menu: New Blank, Maps, Shapes & Symbols, Bestiary, Settings, and Continue. Each opens a full page.
+- Shapes & Symbols: a Shape Builder for custom shapes made from circles and polygons. Every placed copy is an instance of the saved master, so editing the master updates them all; Break apart turns one copy back into plain shapes.
+- Symbols (ammo, health, objective, exit…) with a name, icon, color and letter; make your own.
+- Multi-select (tap or box-select), Group/Ungroup, and Save selection as a custom shape.
 - Bestiary: enemy types shared by every map, with health, speed, range, accuracy and notes.
 - Grid where 1 square = 1 m (100 Unreal units). Pinch to zoom, drag empty space to pan.
 - Shapes are Rooms (floor + walls) or Solids (crates, pillars). Overlapping rooms join: the walls between them dissolve, or a setting keeps a dividing wall.

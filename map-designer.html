@@ -200,6 +200,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 }
 .tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .tool.sep { margin-left: 6px; }
+.ghost.pv svg { width: 28px; height: 28px; }
 .ghost { position: fixed; z-index: 50; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; box-shadow: 0 0 0 3px var(--enemy-ring), var(--shadow); pointer-events: none; display: grid; place-items: center; font: 600 15px var(--font-display); }
 
 /* Sheets */
@@ -267,6 +268,23 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .setrow .ctrl { flex: 1; justify-content: flex-end; min-width: 200px; flex-wrap: nowrap; }
 .setrow output { min-width: 58px; text-align: right; font: 500 13px var(--font-mono); }
 .stepper button:disabled, .stepper input:disabled { opacity: .4; }
+.tabs { display: flex; gap: 2px; }
+.tabs button { background: none; border: 0; padding: 4px 9px; border-radius: 7px; font: 600 10.5px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.chip i.pv, .card-head i.pv { background: var(--surface); border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line); padding: 2px; }
+.chip i.pv svg { width: 22px; height: 22px; }
+.card-head i.pv svg { width: 30px; height: 30px; }
+.chip.newchip { padding: 5px 13px; color: var(--accent); border-style: dashed; }
+.chip.newchip svg { width: 18px; height: 18px; }
+.trayempty { color: var(--muted); font-size: 13px; padding: 8px 2px; }
+i.ic-square { border-radius: 6px !important; }
+i.ic-diamond { border-radius: 4px !important; transform: rotate(45deg) scale(.82); }
+i.ic-diamond b { transform: rotate(-45deg); }
+i.ic-triangle { border-radius: 0 !important; clip-path: polygon(50% 4%, 100% 96%, 0 96%); box-shadow: none !important; }
+i.ic-triangle b { padding-top: 6px; font-size: 11px; }
+i b { font-weight: 600; }
+.builder-ui #lockmap, .builder-ui #status, .builder-ui .floors, .builder-ui .trayhead, .builder-ui .tray { display: none !important; }
+#buildsave { height: 40px; flex: none; }
 .toast {
   position: fixed; z-index: 60; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   width: max-content; max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
@@ -309,10 +327,11 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 <header class="top">
   <button class="iconbtn" id="home" aria-label="Main menu"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
   <button class="mapbtn" id="mapbtn" aria-label="Open maps menu">
-    <span class="eyebrow">Map <span class="tag" id="sampletag" hidden>Example</span></span>
+    <span class="eyebrow"><span id="eyebrowtext">Map</span><span class="tag" id="sampletag" hidden>Example</span></span>
     <span class="mapname"><span id="mapname">Map</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
   </button>
   <button class="status" id="status" data-state="ok" aria-live="polite"><i></i><span id="statustext">Ready</span></button>
+  <button class="btn primary" id="buildsave" hidden>Save shape</button>
   <button class="iconbtn" id="lockmap" aria-label="Lock map" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg></button>
   <button class="iconbtn" id="undo" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
   <button class="iconbtn" id="redo" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
@@ -332,7 +351,9 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 
 <footer class="dock">
   <div class="trayhead">
-    <span class="eyebrow">Players &amp; enemies · drag up onto the map</span>
+    <div class="tabs" role="tablist" aria-label="Things to drag onto the map">
+      <button role="tab" data-tab="units">Characters</button><button role="tab" data-tab="shapes">Shapes</button><button role="tab" data-tab="symbols">Symbols</button>
+    </div>
     <span class="eyebrow"><button id="edittypes">Edit types</button></span>
   </div>
   <div class="tray" id="tray"></div>
@@ -340,6 +361,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     <button class="tool" data-tool="select" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg>Select</button>
     <button class="tool" data-tool="circle" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-16 0a8 8 0 1 1 16 0z"/></svg>Circle</button>
     <button class="tool" data-tool="poly" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>Polygon</button>
+    <button class="tool" data-tool="multi" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 4h10v10H4z"/><path d="M10 10h10v10H10z" stroke-dasharray="3 2.5"/></svg>Multi</button>
     <button class="tool sep" id="snapbtn" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 12h16M12 4v16"/></svg>Snap</button>
     <button class="tool" id="fitbtn"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fit</button>
   </div>
@@ -371,6 +393,18 @@ const DEFAULT_TYPES = [
   { id: 'heavy', name: 'Heavy', color: '#8e4ec6', hp: 250, speed: 2, range: 20, acc: 40, notes: 'Slow and hard to put down.' },
   { id: 'scout', name: 'Scout', color: '#ffc53d', hp: 60, speed: 5.5, range: 15, acc: 35, notes: 'Fast flanker.' },
 ];
+const SYMBOL_ICONS = ['circle', 'square', 'diamond', 'triangle'];
+const SYMBOL_COLORS = ['#e0b43a', '#30a46c', '#3e63dd', '#e5484d', '#f76b15', '#8e4ec6', '#d6409f', '#12a594', '#8c6b4a', '#687076', '#f4f5f7', '#1c2026'];
+const DEFAULT_SYMBOLS = [
+  { id: 'ammo', name: 'Ammo', icon: 'square', color: '#e0b43a', letter: 'A' },
+  { id: 'health', name: 'Health', icon: 'square', color: '#30a46c', letter: '+' },
+  { id: 'armor', name: 'Armor', icon: 'square', color: '#3e63dd', letter: 'R' },
+  { id: 'objective', name: 'Objective', icon: 'diamond', color: '#d6409f', letter: 'O' },
+  { id: 'exit', name: 'Exit', icon: 'diamond', color: '#12a594', letter: 'E' },
+  { id: 'stairs', name: 'Stairs', icon: 'triangle', color: '#687076', letter: 'S' },
+  { id: 'door', name: 'Door', icon: 'square', color: '#8c6b4a', letter: 'D' },
+  { id: 'keycard', name: 'Keycard', icon: 'diamond', color: '#e0b43a', letter: 'K' },
+];
 const POLY_NAMES = { 3: 'Triangle', 4: 'Square', 5: 'Pentagon', 6: 'Hexagon', 7: 'Heptagon', 8: 'Octagon', 9: 'Nonagon', 10: 'Decagon', 11: 'Hendecagon', 12: 'Dodecagon' };
 const ICON = {
   dup: '<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
@@ -386,6 +420,10 @@ const ICON = {
   open: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   padlock: '<path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
+  group: '<path d="M3 3h8v8H3zM13 13h8v8h-8z"/><path d="M11 7h4a2 2 0 0 1 2 2v4"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  explode: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
+  star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
 };
 const ic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
@@ -488,6 +526,82 @@ function absorbTypes(m) {
 }
 const usedTypes = m => Bestiary.data.types.filter(t => m.items.some(i => i.kind === 'enemy' && i.type === t.id));
 
+/* ---------- library: custom shapes (masters) and symbols, shared by every map ---------- */
+function normSymbol(t) {
+  return { id: String(t.id || uid()), name: String(t.name || 'Symbol').slice(0, 24), icon: SYMBOL_ICONS.includes(t.icon) ? t.icon : 'circle',
+    color: isHex(t.color) ? t.color : SYMBOL_COLORS[0], letter: String(t.letter ?? '').slice(0, 2) };
+}
+function normPart(p) {
+  const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  return { kind: p.kind === 'circle' ? 'circle' : 'poly', x: num(p.x, 0), y: num(p.y, 0), w: Math.max(MIN_SIZE, num(p.w, 1)), h: Math.max(MIN_SIZE, num(p.h, 1)),
+    rot: num(p.rot, 0), sides: clamp(Math.round(num(p.sides, 4)), 3, MAX_SIDES), color: isHex(p.color) ? p.color : SHAPE_COLORS[0].hex,
+    style: p.style === 'room' ? 'room' : 'solid', walls: p.walls === 'divide' ? 'divide' : 'merge', lock: !!p.lock };
+}
+function normMaster(m) {
+  return { id: String(m.id || uid()), name: String(m.name || 'Custom shape').slice(0, 40), parts: (Array.isArray(m.parts) ? m.parts : []).filter(Boolean).map(normPart),
+    W: Math.max(MIN_SIZE, +m.W || 1), H: Math.max(MIN_SIZE, +m.H || 1), updated: +m.updated || 0 };
+}
+const FALLBACK_SYMBOL = { id: '?', name: 'Symbol', icon: 'circle', color: '#687076', letter: '?' };
+const Library = {
+  data: { shapes: [], symbols: DEFAULT_SYMBOLS.map(normSymbol), deleted: [], updated: 0 },
+  timer: null,
+  norm(d) {
+    return { shapes: (Array.isArray(d.shapes) ? d.shapes : []).map(normMaster), symbols: (Array.isArray(d.symbols) ? d.symbols : DEFAULT_SYMBOLS).map(normSymbol),
+      deleted: Array.isArray(d.deleted) ? d.deleted : [], updated: +d.updated || 0 };
+  },
+  load() { try { const d = JSON.parse(LS.get('mm2.library') || 'null'); if (d) this.data = this.norm(d); } catch {} },
+  save() {
+    this.data.updated = Date.now();
+    LS.set('mm2.library', JSON.stringify(this.data));
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.push(), 800);
+  },
+  async push() {
+    if (!Store.cloud) return;
+    try { await Store.col().doc('_library').set({ updated: this.data.updated, json: JSON.stringify(this.data) }); } catch {}
+  },
+  // same union as the bestiary; a shape edited on both sides keeps the newer edit
+  async sync() {
+    if (!Store.cloud) return;
+    let c = null;
+    try { const snap = await Store.col().doc('_library').get(); if (snap.exists) c = this.norm(JSON.parse(snap.data().json)); } catch { return; }
+    if (!c) { this.push(); return; }
+    const L = this.data, deleted = [...new Set([...L.deleted, ...c.deleted])];
+    const merge = (a, b, newer) => {
+      const out = new Map();
+      for (const x of [...a, ...b]) { if (deleted.includes(x.id)) continue; const o = out.get(x.id); if (!o || newer(x, o)) out.set(x.id, x); }
+      return [...out.values()];
+    };
+    const cloudNewer = c.updated > L.updated;
+    this.data = {
+      shapes: merge(L.shapes, c.shapes, (x, o) => (x.updated || 0) > (o.updated || 0)),
+      symbols: merge(cloudNewer ? c.symbols : L.symbols, cloudNewer ? L.symbols : c.symbols, () => false),
+      deleted, updated: Math.max(L.updated, c.updated),
+    };
+    LS.set('mm2.library', JSON.stringify(this.data));
+    this.push();
+    absorbLibrary(map); syncInstances(map); instCache.clear(); renderAll(); refreshSheet();
+  },
+};
+const masterOf = id => Library.data.shapes.find(s => s.id === id) || null;
+const symbolOf = id => Library.data.symbols.find(s => s.id === id) || FALLBACK_SYMBOL;
+// a map carries copies of the masters and symbols it uses, so backups and other devices can draw it
+function absorbLibrary(m) {
+  const L = Library.data;
+  let changed = false;
+  for (const x of m.customShapes || []) if (!masterOf(x.id) && !L.deleted.includes(x.id)) { L.shapes.push(normMaster(x)); changed = true; }
+  for (const x of m.symbolDefs || []) if (!L.symbols.some(s => s.id === x.id) && !L.deleted.includes(x.id)) { L.symbols.push(normSymbol(x)); changed = true; }
+  if (changed) Library.save();
+}
+function embedDefs(m) {
+  m.enemyTypes = usedTypes(m);
+  m.customShapes = Library.data.shapes.filter(x => m.items.some(i => i.kind === 'custom' && i.ref === x.id));
+  m.symbolDefs = Library.data.symbols.filter(x => m.items.some(i => i.kind === 'symbol' && i.sym === x.id));
+}
+// instances store their scale against the master, so a master that changes size keeps every copy in proportion
+function syncInstances(m) {
+  for (const i of m.items) if (i.kind === 'custom') { const ms = masterOf(i.ref); if (ms) { i.w = round2(ms.W * i.sx); i.h = round2(ms.H * i.sy); } }
+}
+
 /* ---------- map model ---------- */
 function blankMap(name) {
   const g = { id: uid(), name: 'Ground' };
@@ -508,9 +622,11 @@ function sampleMap() {
   S(g, { x: 19, y: 0, w: 8, h: 4, style: 'room' });
   S(g, { x: -25, y: -5, w: 8, h: 10, color: WOOD, style: 'room', walls: 'divide' });
   S(g, { x: -25, y: 4, w: 8, h: 8, color: SAND, style: 'room', walls: 'divide' });
-  S(g, { x: -9, y: -6, w: 2, h: 2, color: SAND });
-  S(g, { x: -7, y: -6, w: 2, h: 2, color: SAND });
-  S(g, { x: -9, y: -4, w: 2, h: 2, color: SAND });
+  m.customShapes = [{ id: 'ex-crates', name: 'Crate stack', W: 4, H: 4, updated: 1, parts: [
+    { kind: 'poly', x: -1, y: -1, w: 2, h: 2, color: SAND }, { kind: 'poly', x: 1, y: -1, w: 2, h: 2, color: SAND }, { kind: 'poly', x: -1, y: 1, w: 2, h: 2, color: SAND }] }];
+  m.items.push({ id: uid(), floor: g.id, kind: 'custom', ref: 'ex-crates', x: -8, y: -5, w: 4, h: 4, sx: 1, sy: 1, rot: 0, lock: true });
+  m.items.push({ id: uid(), floor: g.id, kind: 'symbol', sym: 'ammo', x: -12, y: 7 }, { id: uid(), floor: g.id, kind: 'symbol', sym: 'health', x: -10.5, y: 7 },
+    { id: uid(), floor: g.id, kind: 'symbol', sym: 'exit', x: -27, y: 6 });
   S(g, { x: 6.5, y: 5, w: 3, h: 2, rot: 15, color: SAND });
   [-5, 0, 5].forEach(x => S(g, { kind: 'circle', x, y: -1, w: 1, h: 1, lock: true, color: SLATE }));
   S(g, { x: -1, y: 5.5, w: 5, h: 5, sides: 6, color: CON });
@@ -532,11 +648,19 @@ function normalize(m) {
   m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor') }));
   if (!m.floors.some(f => f.id === m.activeFloor)) m.activeFloor = m.floors[0].id;
   m.enemyTypes = (Array.isArray(m.enemyTypes) ? m.enemyTypes : []).filter(t => t && t.id).map(normType);
+  m.customShapes = (Array.isArray(m.customShapes) ? m.customShapes : []).filter(t => t && t.id).map(normMaster);
+  m.symbolDefs = (Array.isArray(m.symbolDefs) ? m.symbolDefs : []).filter(t => t && t.id).map(normSymbol);
   const floorIds = new Set(m.floors.map(f => f.id));
   const num = (v, d) => Number.isFinite(+v) ? +v : d;
-  m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy', 'player'].includes(i.kind)).map(i => {
+  m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy', 'player', 'custom', 'symbol'].includes(i.kind)).map(i => {
     const o = { id: String(i.id || uid()), floor: i.floor, kind: i.kind, x: num(i.x, 0), y: num(i.y, 0) };
     if (i.locked) o.locked = true;
+    if (i.grp) o.grp = String(i.grp);
+    if (i.kind === 'symbol') { o.sym = String(i.sym || ''); return o; }
+    if (i.kind === 'custom') {
+      return Object.assign(o, { ref: String(i.ref || ''), rot: num(i.rot, 0), w: Math.max(MIN_SIZE, num(i.w, 1)), h: Math.max(MIN_SIZE, num(i.h, 1)),
+        sx: Math.max(0.01, num(i.sx, 1)), sy: Math.max(0.01, num(i.sy, 1)), lock: i.lock !== false, ...(i.sizeLock ? { sizeLock: true } : {}) });
+    }
     if (i.kind === 'enemy') { o.type = String(i.type || ''); return o; }
     if (i.kind === 'player') { o.rot = norm360(num(i.rot, 0)); return o; }
     return Object.assign(o, {
@@ -620,6 +744,8 @@ let dpr = 1, fitted = false;
 let selectedId = null;
 let tool = 'select';                              // 'select' | 'circle' | 'poly' | 'player' | 'enemy:<typeId>'
 let barMore = false;
+let multi = [];                                   // ids when more than one thing is selected (a group or a multi-selection)
+let builder = null;                               // set while the Shape Builder is open
 let history = [], future = [];
 let livePre = null;
 let edits = 0;
@@ -630,12 +756,24 @@ const canvas = $('#map'), ctx = canvas.getContext('2d'), stage = $('#stage'), ba
 const floorIndex = () => Math.max(0, map.floors.findIndex(f => f.id === map.activeFloor));
 const byId = id => map.items.find(i => i.id === id);
 const selected = () => (selectedId && byId(selectedId)) || null;
+const selItems = () => multi.length ? multi.map(byId).filter(Boolean) : (selected() ? [selected()] : []);
+const groupMembers = it => it.grp ? map.items.filter(i => i.grp === it.grp && i.floor === it.floor) : [it];
+const isGroupSel = items => items.length > 1 && !!items[0].grp && items.every(i => i.grp === items[0].grp) && groupMembers(items[0]).length === items.length;
+function clearSel() { selectedId = null; multi = []; livePre = null; }
+function selectItems(ids) {
+  ids = [...new Set(ids)].filter(id => byId(id));
+  if (ids.length === 1) { selectedId = ids[0]; multi = []; } else { selectedId = null; multi = ids; }
+  livePre = null; renderBar(); requestDraw();
+}
+const selectHit = it => selectItems(groupMembers(it).map(i => i.id));
 const typeOf = id => Bestiary.data.types.find(t => t.id === id) || Bestiary.data.types[0];
-const isMarker = it => it.kind === 'enemy' || it.kind === 'player';
+const isMarker = it => it.kind === 'enemy' || it.kind === 'player' || it.kind === 'symbol';
 const isRoom = it => (it.kind === 'circle' || it.kind === 'poly') && it.style === 'room';
 function itemName(it) {
   if (it.kind === 'player') return 'Player';
   if (it.kind === 'enemy') return typeOf(it.type).name;
+  if (it.kind === 'symbol') return symbolOf(it.sym).name;
+  if (it.kind === 'custom') { const m = masterOf(it.ref); return m ? m.name : 'Missing shape'; }
   const sq = Math.abs(it.w - it.h) < 0.01;
   return it.kind === 'circle' ? (sq ? 'Circle' : 'Ellipse') : (it.sides === 4 && !sq ? 'Rectangle' : POLY_NAMES[it.sides]);
 }
@@ -644,10 +782,13 @@ function itemName(it) {
 const serialize = () => JSON.stringify({ floors: map.floors, items: map.items, activeFloor: map.activeFloor });
 function restore(s) {
   Object.assign(map, JSON.parse(s));
+  multi = multi.filter(id => byId(id));
+  if (multi.length === 1) { selectedId = multi[0]; multi = []; }
   if (!selected()) selectedId = null;
   if (tool.startsWith('enemy:') && !Bestiary.data.types.some(t => 'enemy:' + t.id === tool)) tool = 'select';
 }
 function commit(pre) {
+  for (const i of map.items) if (i.kind === 'custom') { const m = masterOf(i.ref); if (m) { i.sx = round4(i.w / m.W); i.sy = round4(i.h / m.H); } }
   history.push(pre); if (history.length > 150) history.shift();
   future = [];
   markDirty();
@@ -666,6 +807,7 @@ function redo() { if (!future.length) return; history.push(serialize()); restore
 let saveTimer = null, saving = false, saveAgain = false;
 function setStatus(text, state) { $('#statustext').textContent = text; $('#status').dataset.state = state; }
 function markDirty() {
+  if (map.builder) { edits++; return; }   // the builder saves through Save shape, not autosave
   map.updated = Date.now();
   if (map.sample) { delete map.sample; renderHeader(); }
   edits++;
@@ -675,11 +817,12 @@ function markDirty() {
 }
 async function saveNow() {
   clearTimeout(saveTimer); saveTimer = null;
+  if (map.builder) return;
   if (saving) { saveAgain = true; return; }
   saving = true;
   setStatus('Saving…', 'pending');
   const m = map;
-  m.enemyTypes = usedTypes(m);          // backup files and other devices still know these enemies
+  embedDefs(m);                         // backup files and other devices still know these enemies, shapes and symbols
   const local = Store.saveLocal(m);
   const cloud = await Store.saveCloud(m);
   saving = false;
@@ -737,6 +880,7 @@ function distSeg(px, py, [ax, ay], [bx, by]) {
 const markerPx = R => Math.max(MARKER_R * R.s, 8);
 function hitShape(it, x, y, pad) {
   const [lx, ly] = toLocal(it, x, y);
+  if (it.kind === 'custom') return Math.abs(lx) <= it.w / 2 + pad && Math.abs(ly) <= it.h / 2 + pad;
   if (it.kind === 'circle') { const a = it.w / 2 + pad, b = it.h / 2 + pad; return (lx * lx) / (a * a) + (ly * ly) / (b * b) <= 1; }
   const pts = localPts(it);
   if (pointInPoly(lx, ly, pts)) return true;
@@ -761,7 +905,7 @@ function handles(R, it) {
   return { corners, top: { x: mx, y: my }, rot: { x: mx + Math.sin(a) * 34, y: my - Math.cos(a) * 34 } };
 }
 function hitHandle(it, p) {
-  if (it.kind === 'enemy' || it.locked || map.locked) return null;
+  if (it.kind === 'enemy' || it.kind === 'symbol' || it.locked || map.locked) return null;
   const H = handles(view, it), near = q => Math.hypot(q.x - p.x, q.y - p.y) <= 22;
   if (near(H.rot)) return { type: 'rotate' };
   if (!it.sizeLock) for (const c of H.corners) if (near(c)) {
@@ -785,24 +929,21 @@ const PC = window.polygonClipping || null;
 const roomCache = new Map();
 function ringBox(r) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of r) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return { x0, y0, x1, y1 }; }
 const boxesTouch = (a, b) => a.x0 <= b.x1 + 1e-3 && b.x0 <= a.x1 + 1e-3 && a.y0 <= b.y1 + 1e-3 && b.y0 <= a.y1 + 1e-3;
-function roomGroups(floorId) {
-  const rooms = map.items.filter(i => i.floor === floorId && isRoom(i));
-  const key = rooms.map(r => [r.id, r.kind, r.x, r.y, r.w, r.h, r.rot, r.sides, r.walls, r.color].join(',')).join(';');
-  const hit = roomCache.get(floorId);
-  if (hit && hit.key === key) return hit.groups;
-  const polys = rooms.map(r => [worldRing(r)]);
+// entries: { id, ring, walls, color }
+function groupRooms(entries) {
+  const polys = entries.map(e => [e.ring]);
   const boxes = polys.map(p => ringBox(p[0]));
-  const parent = rooms.map((_, i) => i);
+  const parent = entries.map((_, i) => i);
   const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
-  if (PC) for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+  if (PC) for (let i = 0; i < entries.length; i++) for (let j = i + 1; j < entries.length; j++) {
     if (find(i) === find(j) || !boxesTouch(boxes[i], boxes[j])) continue;
     try { if (PC.union(polys[i], polys[j]).length === 1) parent[find(j)] = find(i); } catch {}
   }
   const byRoot = new Map();
-  rooms.forEach((r, i) => { const k = find(i); if (!byRoot.has(k)) byRoot.set(k, []); byRoot.get(k).push(i); });
+  entries.forEach((r, i) => { const k = find(i); if (!byRoot.has(k)) byRoot.set(k, []); byRoot.get(k).push(i); });
   const groups = [];
   for (const idx of byRoot.values()) {
-    const members = idx.map(i => rooms[i]), mp = idx.map(i => polys[i]);
+    const members = idx.map(i => entries[i]), mp = idx.map(i => polys[i]);
     const mode = members[0].walls === 'divide' ? 'divide' : 'merge';
     const g = { ids: new Set(members.map(m => m.id)), size: members.length, mode, fills: [], walls: [] };
     try {
@@ -818,7 +959,34 @@ function roomGroups(floorId) {
     }
     groups.push(g);
   }
+  return groups;
+}
+function roomGroups(floorId) {
+  const rooms = map.items.filter(i => i.floor === floorId && isRoom(i));
+  const key = rooms.map(r => [r.id, r.kind, r.x, r.y, r.w, r.h, r.rot, r.sides, r.walls, r.color].join(',')).join(';');
+  const hit = roomCache.get(floorId);
+  if (hit && hit.key === key) return hit.groups;
+  const groups = groupRooms(rooms.map(r => ({ id: r.id, ring: worldRing(r), walls: r.walls, color: r.color })));
   roomCache.set(floorId, { key, groups });
+  return groups;
+}
+// a part of a custom shape, placed through its instance: part rotation, instance scale, instance rotation, instance position
+function partRing(it, p, m) {
+  const sx = it.w / m.W, sy = it.h / m.H, a = rad(it.rot), c = Math.cos(a), s = Math.sin(a);
+  const pr = rad(p.rot), pc = Math.cos(pr), ps = Math.sin(pr);
+  const local = p.kind === 'circle' ? Array.from({ length: 48 }, (_, k) => { const t = 2 * Math.PI * k / 48; return [Math.cos(t) * p.w / 2, Math.sin(t) * p.h / 2]; }) : localPts(p);
+  return local.map(([x, y]) => {
+    const mx = (p.x + x * pc - y * ps) * sx, my = (p.y + x * ps + y * pc) * sy;
+    return [round4(it.x + mx * c - my * s), round4(it.y + mx * s + my * c)];
+  });
+}
+const instCache = new Map();
+function instanceRoomGroups(it, m) {
+  const key = [it.x, it.y, it.w, it.h, it.rot, m.updated, m.parts.length].join(',');
+  const hit = instCache.get(it.id);
+  if (hit && hit.key === key) return hit.groups;
+  const groups = groupRooms(m.parts.map((p, k) => ({ p, k })).filter(e => e.p.style === 'room').map(({ p, k }) => ({ id: k, ring: partRing(it, p, m), walls: p.walls, color: p.color })));
+  instCache.set(it.id, { key, groups });
   return groups;
 }
 const groupOf = it => isRoom(it) ? roomGroups(it.floor).find(g => g.ids.has(it.id)) : null;
@@ -863,7 +1031,8 @@ function drawGrid(c, R) {
 function drawFloor(c, R, floorId) {
   drawRooms(c, R, floorId);
   const list = map.items.filter(i => i.floor === floorId);
-  for (const it of list) if (!isMarker(it) && !isRoom(it)) drawShape(c, R, it);
+  for (const it of list) if (!isMarker(it) && !isRoom(it)) (it.kind === 'custom' ? drawCustom : drawShape)(c, R, it);
+  for (const it of list) if (it.kind === 'symbol') drawSymbol(c, R, it);
   for (const it of list) if (it.kind === 'enemy') drawEnemy(c, R, it);
   for (const it of list) if (it.kind === 'player') drawPlayer(c, R, it);
 }
@@ -873,8 +1042,8 @@ function traceMulti(c, R, mp) {
     c.closePath();
   }
 }
-function drawRooms(c, R, floorId) {
-  const groups = roomGroups(floorId);
+function drawRooms(c, R, floorId) { drawRoomGroups(c, R, roomGroups(floorId)); }
+function drawRoomGroups(c, R, groups) {
   c.save();
   c.globalAlpha *= settings.roomAlpha;
   for (const g of groups) for (const f of g.fills) {
@@ -897,15 +1066,54 @@ function drawShape(c, R, it) {
   const [sx, sy] = w2s(R, it.x, it.y);
   c.save(); c.translate(sx, sy); c.rotate(rad(it.rot));
   shapePath(c, R, it);
+  paintSolid(c, it.color);
+  c.restore();
+}
+function paintSolid(c, color) {
   const a = c.globalAlpha;
-  c.globalAlpha = a * settings.solidAlpha; c.fillStyle = it.color; c.fill();
+  c.globalAlpha = a * settings.solidAlpha; c.fillStyle = color; c.fill();
   c.globalAlpha = a;
   if (settings.solidLine > 0) {
     // light fills get a dark edge and dark fills a light one, so white and black both read on either theme
-    const [r, g, b] = hexRgb(it.color), light = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
-    c.lineWidth = settings.solidLine; c.strokeStyle = mix(it.color, light ? '#000000' : '#ffffff', light ? 0.45 : 0.35); c.stroke();
+    const [r, g, b] = hexRgb(color), light = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
+    c.lineWidth = settings.solidLine; c.strokeStyle = mix(color, light ? '#000000' : '#ffffff', light ? 0.45 : 0.35); c.stroke();
   }
-  c.restore();
+}
+function drawCustom(c, R, it) {
+  const m = masterOf(it.ref), [cx, cy] = w2s(R, it.x, it.y);
+  if (!m) {
+    c.save(); c.translate(cx, cy); c.rotate(rad(it.rot));
+    c.setLineDash([5, 4]); c.strokeStyle = T.muted; c.lineWidth = 1.5;
+    c.strokeRect(-it.w / 2 * R.s, -it.h / 2 * R.s, it.w * R.s, it.h * R.s);
+    c.fillStyle = T.muted; c.font = `600 12px ${T.display}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Missing shape', 0, 0);
+    c.restore(); return;
+  }
+  drawRoomGroups(c, R, instanceRoomGroups(it, m));
+  const sx = it.w / m.W, sy = it.h / m.H;
+  for (const p of m.parts) {
+    if (p.style === 'room') continue;
+    // build the path under the instance's scale, then paint without it so outlines keep their thickness
+    c.save(); c.translate(cx, cy); c.rotate(rad(it.rot)); c.scale(sx * R.s, sy * R.s); c.translate(p.x, p.y); c.rotate(rad(p.rot));
+    c.beginPath();
+    if (p.kind === 'circle') c.ellipse(0, 0, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
+    else { localPts(p).forEach(([x, y], k) => k ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); }
+    c.restore();
+    paintSolid(c, p.color);
+  }
+}
+function symbolPath(c, icon, x, y, r) {
+  c.beginPath();
+  if (icon === 'square') c.rect(x - r * 0.88, y - r * 0.88, r * 1.76, r * 1.76);
+  else if (icon === 'diamond') { c.moveTo(x, y - r * 1.2); c.lineTo(x + r * 1.2, y); c.lineTo(x, y + r * 1.2); c.lineTo(x - r * 1.2, y); c.closePath(); }
+  else if (icon === 'triangle') { c.moveTo(x, y - r * 1.25); c.lineTo(x + r * 1.15, y + r * 0.8); c.lineTo(x - r * 1.15, y + r * 0.8); c.closePath(); }
+  else c.arc(x, y, r, 0, Math.PI * 2);
+}
+function drawSymbol(c, R, it) {
+  const s = symbolOf(it.sym), [sx, sy] = w2s(R, it.x, it.y), r = markerPx(R);
+  symbolPath(c, s.icon, sx, sy, r);
+  c.fillStyle = s.color; c.fill();
+  c.lineWidth = 2; c.lineJoin = 'round'; c.strokeStyle = T.ring; c.stroke();
+  if (s.letter) markerLetter(c, s.letter, s.color, sx, sy + (s.icon === 'triangle' ? r * 0.2 : 0), s.letter.length > 1 ? r * 0.8 : r);
 }
 function markerLetter(c, ch, color, x, y, r) {
   if (r < 9) return;
@@ -933,7 +1141,60 @@ function dot(c, x, y, filled) {
   c.fillStyle = filled ? T.accent : T.surface; c.fill();
   c.lineWidth = 2; c.strokeStyle = T.accent; c.stroke();
 }
+function worldCorners(it) {
+  if (isMarker(it)) { const r = MARKER_R * 1.2; return [[it.x - r, it.y - r], [it.x + r, it.y - r], [it.x + r, it.y + r], [it.x - r, it.y + r]]; }
+  return CORNERS.map(([sx, sy]) => toWorld(it, sx * it.w / 2, sy * it.h / 2));
+}
+function selBounds(items) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const it of items) for (const [x, y] of worldCorners(it)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return { x0, y0, x1, y1 };
+}
+// a multi-selection gets an upright box: drag a corner to scale everything, the top dot to turn everything
+function multiHandles(R, items) {
+  const b = selBounds(items), [x0, y0] = w2s(R, b.x0, b.y0), [x1, y1] = w2s(R, b.x1, b.y1);
+  return { b, corners: [[x0, y0, b.x0, b.y0, b.x1, b.y1], [x1, y0, b.x1, b.y0, b.x0, b.y1], [x1, y1, b.x1, b.y1, b.x0, b.y0], [x0, y1, b.x0, b.y1, b.x1, b.y0]],
+    top: { x: (x0 + x1) / 2, y: y0 }, rot: { x: (x0 + x1) / 2, y: y0 - 34 } };
+}
+function hitMultiHandle(p, wx, wy) {
+  const items = selItems(), H = multiHandles(view, items), near = (x, y) => Math.hypot(x - p.x, y - p.y) <= 22;
+  const cx = (H.b.x0 + H.b.x1) / 2, cy = (H.b.y0 + H.b.y1) / 2;
+  if (near(H.rot.x, H.rot.y)) return { type: 'mrotate', c: [cx, cy], a0: deg(Math.atan2(wy - cy, wx - cx)) };
+  for (const [sx, sy, cx0, cy0, ax, ay] of H.corners) if (near(sx, sy)) return { type: 'mresize', cx0, cy0, ax, ay };
+  return null;
+}
+function drawMultiSel(c, R) {
+  const items = selItems(), frozen = map.locked || items.some(i => i.locked);
+  c.save();
+  c.strokeStyle = T.accent; c.lineWidth = 1.5;
+  for (const it of items) {
+    c.beginPath();
+    if (isMarker(it)) { const [x, y] = w2s(R, it.x, it.y); c.arc(x, y, markerPx(R) + 4, 0, Math.PI * 2); }
+    else worldCorners(it).forEach(([x, y], k) => { const [sx, sy] = w2s(R, x, y); k ? c.lineTo(sx, sy) : c.moveTo(sx, sy); });
+    c.closePath(); c.stroke();
+  }
+  const H = multiHandles(R, items), [a, , , d] = H.corners;
+  c.strokeStyle = frozen ? T.muted : T.accent;
+  c.setLineDash([6, 4]); c.strokeRect(a[0] - 6, a[1] - 6, H.corners[1][0] - a[0] + 12, d[1] - a[1] + 12); c.setLineDash([]);
+  if (!frozen) {
+    c.beginPath(); c.moveTo(H.top.x, H.top.y - 6); c.lineTo(H.rot.x, H.rot.y); c.stroke();
+    H.corners.forEach(([x, y]) => dot(c, x, y, false));
+    dot(c, H.rot.x, H.rot.y, true);
+  }
+  const label = G && G.type === 'mrotate' ? `${Math.round(G.angle || 0)}°` : `${fmt(H.b.x1 - H.b.x0).replace('.0', '')} × ${fmt(H.b.y1 - H.b.y0).replace('.0', '')} m`;
+  pillLabel(c, R, label, H.top.x, d[1] + 14);
+  c.restore();
+}
+function drawMarquee(c, R) {
+  const [x0, y0] = w2s(R, G.a[0], G.a[1]), [x1, y1] = w2s(R, G.b[0], G.b[1]);
+  c.save();
+  c.fillStyle = T.accent; c.globalAlpha = 0.1; c.fillRect(x0, y0, x1 - x0, y1 - y0);
+  c.globalAlpha = 1; c.strokeStyle = T.accent; c.lineWidth = 1.5; c.setLineDash([5, 4]); c.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  c.restore();
+}
 function drawSelection(c, R) {
+  if (G && G.type === 'marquee') drawMarquee(c, R);
+  if (multi.length) { drawMultiSel(c, R); return; }
   const it = selected(); if (!it) return;
   c.save();
   c.strokeStyle = T.accent; c.lineWidth = 2;
@@ -1006,7 +1267,8 @@ function cancelItemGesture() {
   if (G && G.pre && G.changed) restore(G.pre);
   G = null; syncBar();
 }
-function select(id) { if (selectedId !== id) { selectedId = id; livePre = null; renderBar(); } requestDraw(); }
+function select(id) { if (selectedId !== id || multi.length) { selectedId = id; multi = []; livePre = null; renderBar(); } requestDraw(); }
+const snapshotSel = () => selItems().map(i => ({ id: i.id, x: i.x, y: i.y, ...(i.rot != null ? { rot: i.rot } : {}), ...(i.w != null && !i.sizeLock ? { w: i.w, h: i.h } : {}) }));
 canvas.addEventListener('pointerdown', e => {
   try { canvas.setPointerCapture(e.pointerId); } catch {}
   const p = evPos(e);
@@ -1019,8 +1281,15 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (pointers.size > 2) return;
   const [wx, wy] = s2w(view, p.x, p.y);
-  if (tool !== 'select') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
-  const sel = selected();
+  if (tool !== 'select' && tool !== 'multi') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
+  const frozen = map.locked;
+  const pan = extra => ({ type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false, ...extra });
+  const mgest = extra => ({ start: p, sw: [wx, wy], pre: serialize(), changed: false, orig: snapshotSel(), ...extra });
+  if (multi.length && !frozen && !selItems().some(i => i.locked)) {
+    const h = hitMultiHandle(p, wx, wy);
+    if (h) { G = mgest(h); return; }
+  }
+  const sel = multi.length ? null : selected();
   // on a shape that is small on screen, a drag that starts on the shape moves it instead of catching a corner handle
   const onSmallSel = sel && !isMarker(sel) && Math.min(sel.w, sel.h) * view.s < 80 && hitShape(sel, wx, wy, 0);
   if (sel && !onSmallSel) {
@@ -1028,13 +1297,32 @@ canvas.addEventListener('pointerdown', e => {
     if (h) { G = { ...h, id: sel.id, pre: serialize(), start: p, changed: false }; return; }
   }
   const hit = onSmallSel ? sel : hitItem(wx, wy);
+  if (tool === 'multi') {
+    // tap things to add or remove them; drag on empty space to box-select; drag the selection to move it
+    // rooms cover most of a map, so a drag that starts on one box-selects; a tap on it still toggles it
+    const tap = hit ? { ids: groupMembers(hit).map(i => i.id), inSel: selItems().some(i => i.id === hit.id) } : null;
+    G = hit && !isRoom(hit) ? mgest({ type: 'mtap', ...tap, vx: view.cx, vy: view.cy })
+            : { type: 'marquee', start: p, a: [wx, wy], b: [wx, wy], moved: false, tap };
+    return;
+  }
+  if (hit && multi.includes(hit.id)) {
+    // a second tap on a piece of a selected group picks just that piece
+    G = mgest({ type: 'mmove', tapEnter: hit.grp ? hit.id : null, blocked: frozen || selItems().some(i => i.locked) });
+    return;
+  }
+  if (hit && hit.grp && hit.id !== selectedId) {
+    if (isRoom(hit) || frozen) { G = pan({ tapGroup: hit.id }); return; }
+    selectHit(hit);
+    G = mgest({ type: 'mmove', blocked: selItems().some(i => i.locked) });
+    return;
+  }
   // a room has to be selected before it can be dragged, so a finger inside a big room still pans the map
-  if (hit && !hit.locked && !map.locked && (!isRoom(hit) || hit.id === selectedId)) {
+  if (hit && !hit.locked && !frozen && (!isRoom(hit) || hit.id === selectedId)) {
     select(hit.id);
     G = { type: 'move', id: hit.id, pre: serialize(), ox: wx - hit.x, oy: wy - hit.y, start: p, changed: false };
     return;
   }
-  G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false, tapSelect: hit ? hit.id : null };
+  G = pan({ tapSelect: hit ? hit.id : null });
 });
 canvas.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
@@ -1049,6 +1337,45 @@ canvas.addEventListener('pointermove', e => {
     requestDraw(); return;
   }
   const dist = Math.hypot(p.x - G.start.x, p.y - G.start.y);
+  {
+    const [wx, wy] = s2w(view, p.x, p.y);
+    if (G.type === 'mtap' && dist > 6) {
+      // in Multi mode one finger selects: dragging the selection moves it, any other drag draws a box
+      if (G.inSel && !map.locked && !selItems().some(i => i.locked)) G.type = 'mmove'; else { G.type = 'marquee'; G.a = G.sw; G.tap = null; }
+      G.moved = true;
+    }
+    if (G.type === 'marquee') { G.b = [wx, wy]; G.moved = G.moved || dist > 6; requestDraw(); return; }
+    if (G.type === 'mmove') {
+      if (G.blocked || (!G.changed && dist < 5)) return;
+      let dx = wx - G.sw[0], dy = wy - G.sw[1];
+      if (settings.snap) { dx = snapTo(dx, settings.step); dy = snapTo(dy, settings.step); }
+      for (const o of G.orig) { const it = byId(o.id); if (it) { it.x = round2(o.x + dx); it.y = round2(o.y + dy); } }
+      G.changed = true; requestDraw(); syncBar(); return;
+    }
+    if (G.type === 'mrotate') {
+      let a = deg(Math.atan2(wy - G.c[1], wx - G.c[0])) - G.a0;
+      a = settings.snap ? snapTo(a, settings.rotStep) : Math.round(a);
+      const r = rad(a), cs = Math.cos(r), sn = Math.sin(r);
+      for (const o of G.orig) {
+        const it = byId(o.id); if (!it) continue;
+        const dx = o.x - G.c[0], dy = o.y - G.c[1];
+        it.x = round2(G.c[0] + dx * cs - dy * sn); it.y = round2(G.c[1] + dx * sn + dy * cs);
+        if (o.rot != null) it.rot = norm360(o.rot + a);
+      }
+      G.angle = a; G.changed = true; requestDraw(); syncBar(); return;
+    }
+    if (G.type === 'mresize') {
+      // scale evenly from the opposite corner; uneven scaling would skew turned shapes
+      const fx = G.cx0 !== G.ax ? (wx - G.ax) / (G.cx0 - G.ax) : 1, fy = G.cy0 !== G.ay ? (wy - G.ay) / (G.cy0 - G.ay) : 1;
+      const k = Math.max(0.1, (fx + fy) / 2);
+      for (const o of G.orig) {
+        const it = byId(o.id); if (!it) continue;
+        it.x = round2(G.ax + (o.x - G.ax) * k); it.y = round2(G.ay + (o.y - G.ay) * k);
+        if (o.w != null) { it.w = round2(Math.max(MIN_SIZE, o.w * k)); it.h = round2(Math.max(MIN_SIZE, o.h * k)); }
+      }
+      G.changed = true; requestDraw(); syncBar(); return;
+    }
+  }
   if (G.type === 'place' && dist > 8) { G.type = 'pan'; G.moved = true; }
   if (G.type === 'pan') {
     if (dist > 6) G.moved = true;
@@ -1099,9 +1426,24 @@ function endPointer(e) {
   if (!g) return;
   const up = e.type === 'pointerup';
   if (g.type === 'place' && up) { const p = evPos(e); placeAt(...s2w(view, p.x, p.y)); }
+  else if (g.type === 'mtap' && !g.moved && up) {
+    const cur = selItems().map(i => i.id);
+    selectItems(g.inSel ? cur.filter(id => !g.ids.includes(id)) : [...cur, ...g.ids]);
+  }
+  else if (g.type === 'marquee' && up) {
+    if (!g.moved && g.tap) { const cur = selItems().map(i => i.id); selectItems(g.tap.inSel ? cur.filter(id => !g.tap.ids.includes(id)) : [...cur, ...g.tap.ids]); }
+    else if (!g.moved) { clearSel(); renderBar(); }
+    else {
+      const x0 = Math.min(g.a[0], g.b[0]), x1 = Math.max(g.a[0], g.b[0]), y0 = Math.min(g.a[1], g.b[1]), y1 = Math.max(g.a[1], g.b[1]);
+      const inside = map.items.filter(i => i.floor === map.activeFloor && worldCorners(i).every(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1));
+      selectItems([...selItems().map(i => i.id), ...inside.flatMap(i => groupMembers(i).map(m => m.id))]);
+    }
+  }
+  else if (g.type === 'mmove' && !g.changed && up && g.tapEnter) select(g.tapEnter);
   else if (g.type === 'pan' && !g.moved && up) {
-    if (g.tapSelect) select(g.tapSelect);
-    else if (selectedId) { selectedId = null; renderBar(); }
+    if (g.tapGroup) { const it = byId(g.tapGroup); if (it) selectHit(it); }
+    else if (g.tapSelect) select(g.tapSelect);
+    else if (selItems().length) { clearSel(); renderBar(); }
   }
   else if (g.pre && g.changed) {
     const it = byId(g.id);
@@ -1134,26 +1476,36 @@ function newShape(kind, x, y) {
   return { ...base, w: room ? 8 : 4, h: room ? 6 : 4, lock: false };
 }
 function snapPoint(x, y) { if (settings.snap) { x = snapTo(x, settings.step); y = snapTo(y, settings.step); } return [round2(x), round2(y)]; }
+// tray chip types: PLAYER_TYPE, an enemy type id, 'sym:<id>' or 'cust:<id>'; tools mirror them
+const toolFor = type => type === PLAYER_TYPE ? 'player' : type.startsWith('sym:') ? 'symbol:' + type.slice(4) : type.startsWith('cust:') ? 'custom:' + type.slice(5) : 'enemy:' + type;
 function placeAt(x, y) {
-  [x, y] = snapPoint(x, y);
   if (tool === 'circle' || tool === 'poly') {
+    [x, y] = snapPoint(x, y);
     const it = newShape(tool, x, y);
     mutate(() => map.items.push(it));
-    selectedId = it.id; livePre = null; setTool('select');
+    if (!map.locked) { selectItems([it.id]); setTool('select'); }
   } else if (tool === 'player') placeMarker(PLAYER_TYPE, x, y);
   else if (tool.startsWith('enemy:')) placeMarker(tool.slice(6), x, y);
+  else if (tool.startsWith('symbol:')) placeMarker('sym:' + tool.slice(7), x, y);
+  else if (tool.startsWith('custom:')) { placeMarker('cust:' + tool.slice(7), x, y); setTool('select'); }
 }
 function placeMarker(type, x, y) {
   [x, y] = snapPoint(x, y);
-  const it = type === PLAYER_TYPE
-    ? { id: uid(), floor: map.activeFloor, kind: 'player', x, y, rot: 0 }
-    : { id: uid(), floor: map.activeFloor, kind: 'enemy', type, x, y };
+  const base = { id: uid(), floor: map.activeFloor, x, y };
+  let it;
+  if (type === PLAYER_TYPE) it = { ...base, kind: 'player', rot: 0 };
+  else if (type.startsWith('sym:')) it = { ...base, kind: 'symbol', sym: type.slice(4) };
+  else if (type.startsWith('cust:')) {
+    const m = masterOf(type.slice(5)); if (!m) return;
+    it = { ...base, kind: 'custom', ref: m.id, w: m.W, h: m.H, sx: 1, sy: 1, rot: 0, lock: true };
+  } else it = { ...base, kind: 'enemy', type };
   mutate(() => map.items.push(it));
+  if (it.kind === 'custom' && !map.locked) selectItems([it.id]);
 }
 function setTool(t) {
   if (map.locked && t !== 'select') { toast('The map is locked. Tap the padlock at the top to edit.'); return; }
   tool = t;
-  if (t !== 'select') selectedId = null;
+  if (t !== 'select' && t !== 'multi') clearSel();
   renderAll();
 }
 
@@ -1162,6 +1514,8 @@ const tray = $('#tray');
 let trayDrag = null, ghost = null;
 function markerLook(type) {
   if (type === PLAYER_TYPE) return { color: PLAYER_COLOR, ch: 'P', name: 'Player' };
+  if (type.startsWith('sym:')) { const s = symbolOf(type.slice(4)); return { color: s.color, ch: s.letter, name: s.name, icon: s.icon }; }
+  if (type.startsWith('cust:')) { const m = masterOf(type.slice(5)); return { color: '#687076', ch: '', name: m ? m.name : 'Missing shape', master: m }; }
   const t = typeOf(type);
   return { color: t.color, ch: (t.name.trim()[0] || '?').toUpperCase(), name: t.name };
 }
@@ -1169,8 +1523,9 @@ function showGhost(type, x, y) {
   const l = markerLook(type);
   ghost = document.createElement('div');
   ghost.className = 'ghost';
-  ghost.style.background = l.color; ghost.style.color = textOn(l.color);
-  ghost.textContent = l.ch;
+  if (l.master) { ghost.classList.add('pv'); ghost.style.background = 'var(--surface)'; ghost.innerHTML = masterSVG(l.master); }
+  else { ghost.style.background = l.color; ghost.style.color = textOn(l.color); ghost.textContent = l.ch; }
+  if (l.icon && l.icon !== 'circle') ghost.style.borderRadius = '6px';
   document.body.appendChild(ghost);
   moveGhost(x, y);
 }
@@ -1200,7 +1555,7 @@ window.addEventListener('pointerup', e => {
     const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - 44 - r.top;
     if (x >= 0 && y >= 0 && x <= r.width && y <= r.height) placeMarker(d.type, ...s2w(view, x, y));
   } else if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) {
-    const t = d.type === PLAYER_TYPE ? 'player' : 'enemy:' + d.type;
+    const t = toolFor(d.type);
     setTool(tool === t ? 'select' : t);
   }
   endTrayDrag();
@@ -1211,6 +1566,10 @@ window.addEventListener('pointercancel', e => { if (trayDrag && e.pointerId === 
 function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools(); renderBar(); updateHint(); updateUndo(); requestDraw(); }
 function renderHeader() {
   $('#mapname').textContent = map.name;
+  $('#eyebrowtext').textContent = builder ? 'Shape builder' : 'Map';
+  $('#buildsave').hidden = !builder;
+  $('#home').setAttribute('aria-label', builder ? 'Leave the shape builder' : 'Main menu');
+  document.body.classList.toggle('builder-ui', !!builder);
   $('#sampletag').hidden = !map.sample;
   $('#lockmap').setAttribute('aria-pressed', String(!!map.locked));
   $('#lockmap').setAttribute('aria-label', map.locked ? 'Unlock map' : 'Lock map');
@@ -1224,10 +1583,34 @@ function renderFloors() {
   $('#floorup').disabled = fi >= map.floors.length - 1;
   $('#floordown').disabled = fi <= 0;
 }
-function renderTray() {
-  const chip = (type, cls, pressed) => { const l = markerLook(type); return `<button class="chip${cls}" data-type="${esc(type)}" aria-pressed="${pressed}"><i style="background:${l.color};color:${textOn(l.color)}">${esc(l.ch)}</i>${esc(l.name)}</button>`; };
-  tray.innerHTML = chip(PLAYER_TYPE, ' player', tool === 'player') + Bestiary.data.types.map(t => chip(t.id, '', tool === 'enemy:' + t.id)).join('');
+let trayTab = ['units', 'shapes', 'symbols'].includes(LS.get('mm2.tab')) ? LS.get('mm2.tab') : 'units';
+function masterSVG(m) {
+  const pad = Math.max(m.W, m.H) * 0.08, vb = [-m.W / 2 - pad, -m.H / 2 - pad, m.W + 2 * pad, m.H + 2 * pad].map(v => v.toFixed(2)).join(' ');
+  const el = p => {
+    const room = p.style === 'room';
+    const paint = room ? `fill="${p.color}" fill-opacity="0.35" style="stroke:var(--wall)" stroke-width="2"` : `fill="${p.color}" stroke="${mix(p.color, '#000000', 0.35)}" stroke-width="1"`;
+    const attrs = `transform="translate(${round4(p.x)} ${round4(p.y)}) rotate(${p.rot})" ${paint} vector-effect="non-scaling-stroke"`;
+    return p.kind === 'circle' ? `<ellipse rx="${p.w / 2}" ry="${p.h / 2}" ${attrs}/>` : `<polygon points="${localPts(p).map(([x, y]) => x.toFixed(3) + ',' + y.toFixed(3)).join(' ')}" ${attrs}/>`;
+  };
+  return `<svg viewBox="${vb}" aria-hidden="true">${m.parts.filter(p => p.style === 'room').map(el).join('')}${m.parts.filter(p => p.style !== 'room').map(el).join('')}</svg>`;
 }
+const symbolBadge = s => `<i class="ic-${s.icon}" style="background:${s.color};color:${textOn(s.color)}"><b>${esc(s.letter)}</b></i>`;
+function renderTray() {
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === trayTab)));
+  $('#edittypes').textContent = trayTab === 'units' ? 'Edit types' : trayTab === 'shapes' ? 'Manage shapes' : 'Edit symbols';
+  const chip = (type, cls, badge, name) => `<button class="chip${cls}" data-type="${esc(type)}" aria-pressed="${tool === toolFor(type)}">${badge}${esc(name)}</button>`;
+  const dot = l => `<i style="background:${l.color};color:${textOn(l.color)}">${esc(l.ch)}</i>`;
+  if (trayTab === 'units') {
+    tray.innerHTML = chip(PLAYER_TYPE, ' player', dot(markerLook(PLAYER_TYPE)), 'Player') + Bestiary.data.types.map(t => chip(t.id, '', dot(markerLook(t.id)), t.name)).join('');
+  } else if (trayTab === 'symbols') {
+    tray.innerHTML = Library.data.symbols.map(sy => chip('sym:' + sy.id, '', symbolBadge(sy), sy.name)).join('') || '<span class="trayempty">No symbols yet. Tap Edit symbols to add some.</span>';
+  } else {
+    tray.innerHTML = Library.data.shapes.map(m => chip('cust:' + m.id, '', `<i class="pv">${masterSVG(m)}</i>`, m.name)).join('')
+      + `<button class="chip newchip" data-newshape>${ic('plus')}New shape</button>`;
+  }
+}
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { trayTab = b.dataset.tab; LS.set('mm2.tab', trayTab); renderTray(); }));
+tray.addEventListener('click', e => { if (e.target.closest('[data-newshape]') && !map.locked) openBuilder(null, null); });
 function renderTools() {
   document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
   $('#snapbtn').setAttribute('aria-pressed', String(settings.snap));
@@ -1236,26 +1619,115 @@ function updateHint() {
   const h = $('#hint');
   let text = '';
   const shapeWord = settings.style === 'room' ? ' room' : '';
-  if (map.locked) text = 'The map is locked. You can look around and tap things to check sizes. Tap the padlock to edit.';
+  if (tool === 'multi') text = 'Tap things to add or remove them, or drag to draw a selection box. Drag the selection to move it. Pan with two fingers.';
+  else if (tool.startsWith('custom:')) { const m = masterOf(tool.slice(7)); text = `Tap the map to place ${m ? m.name : 'the shape'}.`; }
+  else if (tool.startsWith('symbol:')) { const sy = symbolOf(tool.slice(7)); text = `Tap the map to place ${sy.name} symbols. Tap ${sy.name} again to stop.`; }
+  else if (builder && !map.items.length) text = 'Build your shape from circles and polygons, then tap Save shape. Rooms and solids both work.';
+  else if (map.locked) text = 'The map is locked. You can look around and tap things to check sizes. Tap the padlock to edit.';
   else if (tool === 'circle') text = `Tap the map to place a circle${shapeWord}.`;
   else if (tool === 'poly') text = `Tap the map to place a ${POLY_NAMES[map.lastSides].toLowerCase()}${shapeWord}.`;
   else if (tool === 'player') text = 'Tap the map to place players. Tap Player again to stop.';
   else if (tool.startsWith('enemy:')) { const t = typeOf(tool.slice(6)); text = `Tap the map to drop ${t.name} enemies. Tap ${t.name} again to stop.`; }
-  else if (!map.items.some(i => i.floor === map.activeFloor)) text = 'This floor is empty. Pick Circle or Polygon, or drag a player or enemy up onto the map.';
+  else if (!builder && !map.items.some(i => i.floor === map.activeFloor)) text = 'This floor is empty. Pick Circle or Polygon, or drag a player or enemy up onto the map.';
   h.textContent = text; h.hidden = !text;
 }
 
 /* ---------- selection bar ---------- */
 let barKey = null;
 function renderBar() {
-  const it = selected();
-  bar.hidden = !it;
-  if (!it) { bar.innerHTML = ''; barKey = null; return; }
-  const g = groupOf(it);
+  const items = selItems();
+  bar.hidden = !items.length;
+  if (!items.length) { bar.innerHTML = ''; barKey = null; return; }
+  if (items.length > 1) {
+    const key = ['multi', items.map(i => i.id).join(), barMore, map.locked, items.every(i => i.locked), isGroupSel(items)].join('|');
+    if (key !== barKey) { bar.innerHTML = multiBarHTML(items); bindMultiBar(); barKey = key; }
+    syncBar(); return;
+  }
+  const it = items[0], g = groupOf(it);
   const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock,
-    it.kind === 'enemy' ? Bestiary.data.types.map(t => t.id + t.name + t.color).join() : ''].join('|');
+    it.kind === 'enemy' ? Bestiary.data.types.map(t => t.id + t.name + t.color).join() : it.kind === 'symbol' ? Library.data.symbols.map(t => t.id + t.name + t.color).join() : ''].join('|');
   if (key !== barKey) { bar.innerHTML = barHTML(it, g); bindBar(it); barKey = key; }
   syncBar();
+}
+function multiBarHTML(items) {
+  const title = `<div class="bar-title"><strong data-b="name"></strong><span data-b="dims"></span></div>`;
+  const close = `<button data-m="close" aria-label="Close">${ic('close')}</button>`;
+  if (map.locked) return `<div class="bar-row">${title}${close}</div>`;
+  const grouped = isGroupSel(items), allLocked = items.every(i => i.locked);
+  const row = `<div class="bar-row">${title}
+    <button data-m="${grouped ? 'ungroup' : 'group'}" aria-label="${grouped ? 'Ungroup' : 'Group'}" aria-pressed="${grouped}">${ic('group')}</button>
+    <button data-m="lock" aria-label="${allLocked ? 'Unlock all' : 'Lock all'}" aria-pressed="${allLocked}">${ic('padlock')}</button>
+    ${allLocked ? '' : `<button data-m="del" class="danger" aria-label="Delete all">${ic('del')}</button>`}
+    <button data-m="more" aria-label="More" aria-expanded="${barMore}">${ic('more')}</button>
+    ${close}</div>`;
+  if (!barMore) return row;
+  const shapes = items.filter(i => i.kind === 'circle' || i.kind === 'poly').length;
+  return row + `<div class="bar-more"><div class="prow"><span class="lbl">Actions</span><div class="ctrl">
+    <button class="smallbtn" data-m="dup">${ic('dup')}Duplicate</button>
+    <button class="smallbtn" data-m="${grouped ? 'ungroup' : 'group'}">${ic('group')}${grouped ? 'Ungroup' : 'Group'}</button>
+    ${shapes && !builder ? `<button class="smallbtn" data-m="savecustom">${ic('star')}Save as custom shape</button>` : ''}
+  </div></div>
+  ${shapes && !builder ? `<p class="note" style="margin:0;color:var(--muted);font-size:12.5px">Save as custom shape turns the selected circles and polygons into one reusable shape. Players, enemies and symbols stay as they are.</p>` : ''}</div>`;
+}
+function bindMultiBar() {
+  bar.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => {
+    const items = selItems(), ids = new Set(items.map(i => i.id)), act = b.dataset.m;
+    if (act === 'close') { clearSel(); renderAll(); }
+    else if (act === 'more') { barMore = !barMore; renderBar(); }
+    else if (act === 'group') { mutate(() => { const g = uid(); items.forEach(i => { i.grp = g; }); }); toast('Grouped. Tap any piece to select the group; tap a piece again to pick just that one.'); }
+    else if (act === 'ungroup') mutate(() => items.forEach(i => { delete i.grp; }));
+    else if (act === 'lock') { const all = items.every(i => i.locked); mutate(() => items.forEach(i => { if (all) delete i.locked; else i.locked = true; })); }
+    else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => !ids.has(i.id)); }); clearSel(); renderAll(); }
+    else if (act === 'dup') {
+      const grpMap = {}, copies = items.map(i => { const c = clone(i); c.id = uid(); c.x = round2(c.x + 1); c.y = round2(c.y + 1); delete c.locked; if (c.grp) c.grp = grpMap[c.grp] || (grpMap[c.grp] = uid()); return c; });
+      mutate(() => map.items.push(...copies)); selectItems(copies.map(c => c.id)); renderAll();
+    }
+    else if (act === 'savecustom') openSaveCustom(items);
+  }));
+}
+function openSaveCustom(items) {
+  openSheet('Save as custom shape', body => {
+    body.innerHTML = `<section>
+      <label class="eyebrow" for="c-name">Name</label>
+      <input class="field" id="c-name" maxlength="40" value="Custom shape ${Library.data.shapes.length + 1}">
+      <p>The selected circles and polygons become one shape you can drag onto any map from the Shapes tab. Edit it later and every copy updates.</p>
+      <div class="btnrow"><button class="btn primary" id="c-save">${ic('star')}Save shape</button></div>
+    </section>`;
+    const inp = body.querySelector('#c-name');
+    const go = () => {
+      const pieces = items.filter(i => byId(i.id) && (i.kind === 'circle' || i.kind === 'poly'));
+      if (!pieces.length) { closeSheet(); return; }
+      const def = partsToMaster(pieces), m = normMaster({ id: uid(), name: inp.value.trim() || 'Custom shape', parts: def.parts, W: def.W, H: def.H, updated: Date.now() });
+      Library.data.shapes.push(m); Library.save();
+      const ids = new Set(pieces.map(i => i.id));
+      const inst = { id: uid(), floor: map.activeFloor, kind: 'custom', ref: m.id, x: round2(def.cx), y: round2(def.cy), w: m.W, h: m.H, sx: 1, sy: 1, rot: 0, lock: true };
+      mutate(() => { map.items = map.items.filter(i => !ids.has(i.id)); map.items.push(inst); });
+      selectItems([inst.id]); closeSheet(); renderAll();
+      toast(`Saved “${m.name}”. It's in the Shapes tab of the tray.`);
+    };
+    body.querySelector('#c-save').addEventListener('click', go);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    inp.select();
+  });
+}
+// the bounding box of the pieces becomes the master's frame; parts are stored around its centre
+function partsToMaster(items) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const it of items) { const b = ringBox(worldRing(it)); x0 = Math.min(x0, b.x0); y0 = Math.min(y0, b.y0); x1 = Math.max(x1, b.x1); y1 = Math.max(y1, b.y1); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return { cx, cy, W: round2(Math.max(MIN_SIZE, x1 - x0)), H: round2(Math.max(MIN_SIZE, y1 - y0)), parts: items.map(i => normPart({ ...i, x: round4(i.x - cx), y: round4(i.y - cy) })) };
+}
+// turn one copy back into ordinary shapes, grouped so they still move together
+function breakApart(inst) {
+  const m = masterOf(inst.ref); if (!m) return;
+  const sx = inst.w / m.W, sy = inst.h / m.H, a = rad(inst.rot), c = Math.cos(a), s = Math.sin(a), grp = uid();
+  const pieces = m.parts.map(p => {
+    const px = p.x * sx, py = p.y * sy, swap = Math.abs(Math.sin(rad(p.rot))) > 0.7;
+    return { ...clone(p), id: uid(), floor: inst.floor, grp, x: round2(inst.x + px * c - py * s), y: round2(inst.y + px * s + py * c),
+      w: round2(p.w * (swap ? sy : sx)), h: round2(p.h * (swap ? sx : sy)), rot: norm360(p.rot + inst.rot) };
+  });
+  mutate(() => { const i = map.items.indexOf(inst); map.items.splice(i, 1, ...pieces); });
+  selectItems(pieces.map(p => p.id)); renderAll();
 }
 function barHTML(it, g) {
   const title = `<div class="bar-title"><strong data-b="name"></strong><span data-b="dims"></span></div>`;
@@ -1283,6 +1755,26 @@ function barHTML(it, g) {
       ${Bestiary.data.types.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
     </div></div>
     <div class="prow"><span class="lbl">Stats</span><div class="ctrl"><span class="note mono" data-b="stats"></span></div></div>` + pos;
+  } else if (it.kind === 'symbol') {
+    more = `<div class="prow"><span class="lbl">Symbol</span><div class="ctrl">
+      ${Library.data.symbols.map(t => `<button class="typechip" data-setsym="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
+    </div></div>` + pos;
+  } else if (it.kind === 'custom') {
+    more = `
+    <div class="prow"><span class="lbl">Size</span><div class="ctrl">
+      <div class="stepper"><span>W</span><button data-step="w:-1" aria-label="Narrower">−</button><input id="p-w" type="number" inputmode="decimal" step="0.5" aria-label="Width in metres"><button data-step="w:1" aria-label="Wider">+</button></div>
+      <div class="stepper"><span>H</span><button data-step="h:-1" aria-label="Shorter">−</button><input id="p-h" type="number" inputmode="decimal" step="0.5" aria-label="Height in metres"><button data-step="h:1" aria-label="Taller">+</button></div>
+      <button class="lockbtn" data-act="lock" aria-label="Keep proportions">${ic('lock')}</button>
+      <button class="smallbtn" data-act="sizelock" aria-pressed="${!!it.sizeLock}">${ic('padlock')}${it.sizeLock ? 'Size locked' : 'Lock size'}</button>
+    </div></div>
+    <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
+    ${pos}
+    <div class="prow"><span class="lbl">Actions</span><div class="ctrl">
+      ${masterOf(it.ref) ? `<button class="smallbtn" data-act="editmaster">${ic('edit')}Edit shape</button><button class="smallbtn" data-act="explode">${ic('explode')}Break apart</button>` : ''}
+      <button class="smallbtn" data-act="dup">${ic('dup')}Duplicate</button>
+      <button class="smallbtn" data-act="back">${ic('back')}To back</button><button class="smallbtn" data-act="front">${ic('front')}To front</button>
+    </div></div>
+    <p style="margin:0;color:var(--muted);font-size:12.5px">Edit shape changes every copy of ${esc(itemName(it))}. Break apart turns just this copy back into separate shapes.</p>`;
   } else if (it.kind === 'player') {
     more = `<div class="prow"><label class="lbl" for="p-rot">Facing</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>` + pos;
   } else {
@@ -1321,15 +1813,18 @@ function bindBar(it) {
   const on = (sel, fn) => bar.querySelectorAll(sel).forEach(b => b.addEventListener('click', () => { const x = cur(); if (x) fn(x, b); }));
   on('[data-act]', (x, b) => {
     const act = b.dataset.act;
-    if (act === 'close') { selectedId = null; renderAll(); }
+    if (act === 'close') { clearSel(); renderAll(); }
     else if (act === 'more') { barMore = !barMore; renderBar(); }
-    else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
-    else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; delete c.locked; mutate(() => map.items.push(c)); selectedId = c.id; renderAll(); }
+    else if (act === 'del') { mutate(() => { map.items = map.items.filter(i => i.id !== id); }); clearSel(); renderAll(); }
+    else if (act === 'dup') { const c = { ...x, id: uid(), x: x.x + 1, y: x.y + 1 }; delete c.locked; delete c.grp; mutate(() => map.items.push(c)); selectItems([c.id]); renderAll(); }
     else if (act === 'lockobj') mutate(() => { if (x.locked) delete x.locked; else x.locked = true; });
     else if (act === 'sizelock') mutate(() => { if (x.sizeLock) delete x.sizeLock; else x.sizeLock = true; });
     else if (act === 'front' || act === 'back') mutate(() => { map.items = map.items.filter(i => i.id !== id); act === 'front' ? map.items.push(x) : map.items.unshift(x); });
     else if (act === 'lock') mutate(() => { x.lock = !x.lock; });
+    else if (act === 'editmaster') openBuilder(x.ref, null);
+    else if (act === 'explode') breakApart(x);
   });
+  on('[data-setsym]', (x, b) => mutate(() => { x.sym = b.dataset.setsym; }));
   on('[data-sides]', (x, b) => {
     const v = clamp(x.sides + +b.dataset.sides, 3, MAX_SIDES);
     if (v !== x.sides) { map.lastSides = v; mutate(() => { x.sides = v; }); }
@@ -1359,7 +1854,15 @@ function setSize(x, dim, v) {
   else x[dim] = v;
 }
 function syncBar() {
-  const it = selected(); if (!it || bar.hidden) return;
+  if (bar.hidden) return;
+  if (multi.length) {
+    const items = selItems(), b = selBounds(items), grouped = isGroupSel(items);
+    const txt = (k, v) => { const el = bar.querySelector(`[data-b="${k}"]`); if (el) el.textContent = v; };
+    txt('name', grouped ? 'Group' : `${items.length} selected`);
+    txt('dims', `${items.length} items · ${fmt(b.x1 - b.x0).replace('.0', '')} × ${fmt(b.y1 - b.y0).replace('.0', '')} m`);
+    return;
+  }
+  const it = selected(); if (!it) return;
   const set = (sel, v) => { const el = bar.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
   const txt = (b, v) => { const el = bar.querySelector(`[data-b="${b}"]`); if (el) el.textContent = v; };
   const pressed = (attr, val) => bar.querySelectorAll(`[${attr}]`).forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === val)));
@@ -1372,9 +1875,10 @@ function syncBar() {
     txt('stats', `${t.hp} HP · ${t.speed} m/s · ${t.range} m · ${t.acc}%`);
     return;
   }
+  if (it.kind === 'symbol') { txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-setsym', it.sym); return; }
   if (it.kind === 'player') { txt('dims', `${floor} · facing ${Math.round(it.rot)}°`); set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`); return; }
   const g = groupOf(it);
-  txt('dims', (it.style === 'room' ? 'Room · ' : '') + dimsText(it).replace(/\.0\b/g, '') + (g && g.size > 1 ? ' · joined' : ''));
+  txt('dims', (it.kind === 'custom' ? 'Custom · ' : it.style === 'room' ? 'Room · ' : '') + dimsText(it).replace(/\.0\b/g, '') + (g && g.size > 1 ? ' · joined' : ''));
   bar.querySelectorAll('[data-step], #p-w, #p-h, [data-act="lock"]').forEach(el => { el.disabled = !!it.sizeLock; });
   txt('sidesn', it.sides);
   set('#p-sides', it.sides); txt('sides', `${it.sides} · ${POLY_NAMES[it.sides]}`);
@@ -1424,18 +1928,62 @@ function armButton(btn, label, onConfirm) {
   setTimeout(() => { if (btn.isConnected && btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = old; } }, 3500);
 }
 
+/* ---------- shape builder: the editor on a scratch map whose shapes become a master ---------- */
+async function openBuilder(masterId, back) {
+  if (builder) return;
+  await flushSave();
+  const m = masterId ? masterOf(masterId) : null;
+  builder = { masterId: m ? m.id : null, back, prev: { map, history, future, view: { ...view }, status: [$('#statustext').textContent, $('#status').dataset.state] } };
+  map = { id: '__builder', name: m ? m.name : 'New shape', floors: [{ id: 'b', name: 'Builder' }], activeFloor: 'b', builder: true, updated: Date.now(),
+    items: (m ? m.parts : []).map(p => ({ ...clone(p), id: uid(), floor: 'b' })), enemyTypes: [], lastSides: builder.prev.map.lastSides, lastColor: builder.prev.map.lastColor };
+  history = []; future = []; clearSel(); tool = 'select'; edits = 0; roomCache.clear();
+  closeAll(); menu.hidden = true;
+  if (m) fitView(); else { view.cx = 0; view.cy = 0; view.s = 32; }
+  renderAll();
+}
+function closeBuilder() {
+  const { prev, back } = builder;
+  builder = null;
+  map = prev.map; history = prev.history; future = prev.future; Object.assign(view, prev.view);
+  clearSel(); tool = 'select'; roomCache.clear(); instCache.clear();
+  syncInstances(map);
+  setStatus(...prev.status);
+  renderAll();
+  if (back && back.page) { if (back.pageFrom === 'menu') menu.hidden = false; openPage('Shapes & Symbols', buildShapes, back.pageFrom); }
+}
+function saveBuilder() {
+  const pieces = map.items.filter(i => i.kind === 'circle' || i.kind === 'poly');
+  if (!pieces.length) { toast('Add at least one circle or polygon first.'); return; }
+  const def = partsToMaster(pieces), name = map.name;
+  let m = builder.masterId && masterOf(builder.masterId);
+  if (m) Object.assign(m, { name, parts: def.parts, W: def.W, H: def.H, updated: Date.now() });
+  else { m = normMaster({ id: uid(), name, parts: def.parts, W: def.W, H: def.H, updated: Date.now() }); Library.data.shapes.push(m); }
+  Library.save();
+  closeBuilder();
+  const n = map.items.filter(i => i.kind === 'custom' && i.ref === m.id).length;
+  if (n) markDirty();
+  renderAll(); refreshSheet();
+  toast(n ? `Saved “${name}”. ${n} cop${n === 1 ? 'y' : 'ies'} on this map updated.` : `Saved “${name}”. It's in the Shapes tab of the tray.`);
+}
+let leaveArmed = false;
+$('#buildsave').addEventListener('click', saveBuilder);
+
 /* ---------- main menu ---------- */
 const menu = $('#menu');
 const menuOpen = () => !menu.hidden;
 function showMenu() {
   flushSave();
-  selectedId = null; tool = 'select';
+  clearSel(); tool = 'select';
   $('#menucontname').textContent = '· ' + map.name;
   menu.hidden = false;
   renderAll();
 }
 function hideMenu() { menu.hidden = true; if (!fitted && view.W) { fitted = true; fitView(); } requestDraw(); }
-$('#home').addEventListener('click', showMenu);
+$('#home').addEventListener('click', () => {
+  if (!builder) { showMenu(); return; }
+  if (edits && !leaveArmed) { leaveArmed = true; setTimeout(() => { leaveArmed = false; }, 3500); toast('This shape isn’t saved. Tap the house again to leave without saving.'); return; }
+  leaveArmed = false; closeBuilder();
+});
 $('#menucontinue').addEventListener('click', hideMenu);
 $('#menumaps').addEventListener('click', () => openPage('Maps', b => buildMaps(b, true), 'menu'));
 $('#menushapes').addEventListener('click', () => openPage('Shapes & Symbols', buildShapes, 'menu'));
@@ -1461,8 +2009,13 @@ function shapeSVG(kind, n) {
   const pts = unitPoly(n).map(([x, y]) => `${(24 + x * 36).toFixed(1)},${(24 + y * 36).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 48 48" aria-hidden="true"><polygon points="${pts}"/></svg>`;
 }
+let libOpen = null;
 function buildShapes(body) {
+  const L = Library.data, here = pageReturn, back = { page: true, pageFrom: here };
   const tiles = [['circle', 0, 'Circle'], ...Array.from({ length: MAX_SIDES - 2 }, (_, i) => ['poly', i + 3, POLY_NAMES[i + 3]])];
+  const head = (id, badge, name, sub) => `<button class="card-head" data-libopen="${esc(id)}" aria-expanded="${libOpen === id}">${badge}
+    <div class="grow"><div class="t">${esc(name)}</div><div class="s">${esc(sub)}</div></div>${ic('chevron')}</button>`;
+  const copies = (kind, key, id) => map.items.filter(i => i.kind === kind && i[key] === id).length;
   body.innerHTML = `
     <section>
       <h3>Basic shapes</h3>
@@ -1471,12 +2024,91 @@ function buildShapes(body) {
     </section>
     <section>
       <h3>Custom shapes</h3>
-      <p>Coming in the next update: a Shape Builder where you combine these pieces into your own shapes, like a crate stack or a furnished room, and save them here to drag onto any map.</p>
+      <p>Build a shape from circles and polygons and save it. Every copy you place follows the saved shape, so editing it updates them all.</p>
+      <div class="btnrow"><button class="btn primary" id="l-newshape">${ic('plus')}New custom shape</button></div>
+      <div class="list">${L.shapes.map(m => `<div class="card">
+        ${head(m.id, `<i class="pv">${masterSVG(m)}</i>`, m.name, `${m.parts.length} part${m.parts.length === 1 ? '' : 's'} · ${fmt(m.W).replace('.0', '')} × ${fmt(m.H).replace('.0', '')} m`)}
+        ${libOpen === m.id ? `<div class="card-body">
+          <label>Name<input class="field" data-lname="${esc(m.id)}" value="${esc(m.name)}" maxlength="40"></label>
+          <div class="btnrow">
+            <button class="btn primary" data-la="place" data-id="${esc(m.id)}">Place on map</button>
+            <button class="btn" data-la="edit" data-id="${esc(m.id)}">${ic('edit')}Edit</button>
+            <button class="btn" data-la="dup" data-id="${esc(m.id)}">${ic('dup')}Duplicate</button>
+            <button class="btn danger" data-la="del" data-id="${esc(m.id)}">${ic('del')}Delete</button>
+          </div>
+          <p>${copies('custom', 'ref', m.id)} on this map.</p>
+        </div>` : ''}
+      </div>`).join('') || '<p>No custom shapes yet.</p>'}</div>
+    </section>
+    <section>
+      <h3>Symbols</h3>
+      <p>Markers for pickups, objectives, doors and anything else. Each has a name, an icon, a color and a letter.</p>
+      <div class="btnrow"><button class="btn primary" id="l-newsym">${ic('plus')}New symbol</button></div>
+      <div class="list">${L.symbols.map(sy => `<div class="card">
+        ${head(sy.id, symbolBadge(sy), sy.name, `${sy.icon[0].toUpperCase() + sy.icon.slice(1)}${sy.letter ? ' · ' + sy.letter : ''}`)}
+        ${libOpen === sy.id ? `<div class="card-body">
+          <div class="stats">
+            <label>Name<input class="field" data-sname="${esc(sy.id)}" value="${esc(sy.name)}" maxlength="24"></label>
+            <label>Letter<input class="field" data-sletter="${esc(sy.id)}" value="${esc(sy.letter)}" maxlength="2"></label>
+          </div>
+          <div class="seg">${SYMBOL_ICONS.map(icn => `<button data-sicon="${icn}" data-id="${esc(sy.id)}" aria-pressed="${icn === sy.icon}">${icn[0].toUpperCase() + icn.slice(1)}</button>`).join('')}</div>
+          <div class="swatches">${SYMBOL_COLORS.map(c => `<button class="sw" data-scolor="${c}" data-id="${esc(sy.id)}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === sy.color}"></button>`).join('')}</div>
+          <div class="btnrow">
+            <button class="btn primary" data-la="placesym" data-id="${esc(sy.id)}">Place on map</button>
+            <button class="btn danger" data-la="delsym" data-id="${esc(sy.id)}">${ic('del')}Delete</button>
+          </div>
+          <p>${copies('symbol', 'sym', sy.id)} on this map.</p>
+        </div>` : ''}
+      </div>`).join('') || '<p>No symbols yet.</p>'}</div>
     </section>`;
+  const startPlacing = (tab, t) => {
+    if (map.locked) { toast('The map is locked. Unlock it to place things.'); return; }
+    closeAll(); hideMenu(); trayTab = tab; LS.set('mm2.tab', tab); setTool(t);
+  };
   body.querySelectorAll('.tile').forEach(b => b.addEventListener('click', () => {
-    if (map.locked) { toast('The map is locked. Unlock it to place shapes.'); return; }
     if (b.dataset.k === 'poly') map.lastSides = +b.dataset.n;
-    closeAll(); hideMenu(); setTool(b.dataset.k);
+    startPlacing(trayTab, b.dataset.k);
+  }));
+  body.querySelector('#l-newshape').addEventListener('click', () => openBuilder(null, back));
+  body.querySelector('#l-newsym').addEventListener('click', () => {
+    const used = new Set(L.symbols.map(x => x.color));
+    const sy = normSymbol({ name: `Symbol ${L.symbols.length + 1}`, icon: 'circle', letter: '', color: SYMBOL_COLORS.find(c => !used.has(c)) || SYMBOL_COLORS[0] });
+    L.symbols.push(sy); libOpen = sy.id; Library.save(); renderAll(); refreshSheet();
+    const inp = body.querySelector(`[data-sname="${CSS.escape(sy.id)}"]`); if (inp) { inp.focus(); inp.select(); }
+  });
+  body.querySelectorAll('[data-libopen]').forEach(b => b.addEventListener('click', () => { libOpen = libOpen === b.dataset.libopen ? null : b.dataset.libopen; refreshSheet(); }));
+  // text edits update the card in place so the next field you tap isn't rebuilt under your finger
+  const headOf = id => body.querySelector(`[data-libopen="${CSS.escape(id)}"]`);
+  body.querySelectorAll('[data-lname]').forEach(el => el.addEventListener('change', () => {
+    const m = masterOf(el.dataset.lname), v = el.value.trim(); if (!m) return;
+    if (!v) { el.value = m.name; return; }
+    m.name = v.slice(0, 40); m.updated = Date.now(); headOf(m.id).querySelector('.t').textContent = m.name; Library.save(); renderAll();
+  }));
+  body.querySelectorAll('[data-sname], [data-sletter]').forEach(el => el.addEventListener('change', () => {
+    const sy = L.symbols.find(x => x.id === (el.dataset.sname || el.dataset.sletter)); if (!sy) return;
+    if (el.dataset.sname) { if (!el.value.trim()) { el.value = sy.name; return; } sy.name = el.value.trim().slice(0, 24); }
+    else sy.letter = el.value.trim().slice(0, 2);
+    const h = headOf(sy.id); h.querySelector('.t').textContent = sy.name; h.querySelector('i').outerHTML = symbolBadge(sy);
+    Library.save(); renderAll();
+  }));
+  body.querySelectorAll('[data-sicon]').forEach(b => b.addEventListener('click', () => { const sy = L.symbols.find(x => x.id === b.dataset.id); if (sy) { sy.icon = b.dataset.sicon; Library.save(); renderAll(); refreshSheet(); } }));
+  body.querySelectorAll('[data-scolor]').forEach(b => b.addEventListener('click', () => { const sy = L.symbols.find(x => x.id === b.dataset.id); if (sy) { sy.color = b.dataset.scolor; Library.save(); renderAll(); refreshSheet(); } }));
+  body.querySelectorAll('[data-la]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.id, act = b.dataset.la;
+    if (act === 'place') startPlacing('shapes', 'custom:' + id);
+    else if (act === 'placesym') startPlacing('symbols', 'symbol:' + id);
+    else if (act === 'edit') openBuilder(id, back);
+    else if (act === 'dup') { const m = masterOf(id); if (m) { const c = normMaster({ ...clone(m), id: uid(), name: (m.name + ' copy').slice(0, 40), updated: Date.now() }); L.shapes.push(c); libOpen = c.id; Library.save(); renderAll(); refreshSheet(); } }
+    else if (act === 'del') armButton(b, 'Delete? Placed copies show as missing', () => {
+      L.shapes = L.shapes.filter(x => x.id !== id); L.deleted.push(id); libOpen = null;
+      if (tool === 'custom:' + id) tool = 'select';
+      Library.save(); instCache.clear(); renderAll(); refreshSheet();
+    });
+    else if (act === 'delsym') armButton(b, 'Delete? Placed copies show as ?', () => {
+      L.symbols = L.symbols.filter(x => x.id !== id); L.deleted.push(id); libOpen = null;
+      if (tool === 'symbol:' + id) tool = 'select';
+      Library.save(); renderAll(); refreshSheet();
+    });
   }));
 }
 
@@ -1605,8 +2237,8 @@ async function openMapById(id) {
   return true;
 }
 function openMap(m) {
-  absorbTypes(m);
-  map = m; history = []; future = []; livePre = null; selectedId = null; tool = 'select'; edits = 0;
+  absorbTypes(m); absorbLibrary(m); syncInstances(m); instCache.clear();
+  map = m; history = []; future = []; clearSel(); tool = 'select'; edits = 0;
   roomCache.clear();
   if (!m.sample) LS.set('mm2.current', m.id);
   fitted = !!view.W; fitView();
@@ -1683,7 +2315,18 @@ async function listMaps(body) {
     refreshSheet();
   })));
 }
-$('#mapbtn').addEventListener('click', () => openPage('Maps', b => buildMaps(b, false), 'editor'));
+$('#mapbtn').addEventListener('click', () => {
+  if (!builder) { openPage('Maps', b => buildMaps(b, false), 'editor'); return; }
+  openSheet('Shape name', body => {
+    body.innerHTML = `<section><input class="field" id="sb-name" maxlength="40" value="${esc(map.name)}" aria-label="Shape name">
+      <div class="btnrow"><button class="btn primary" id="sb-ok">Rename</button></div></section>`;
+    const inp = body.querySelector('#sb-name');
+    const go = () => { const v = inp.value.trim(); if (v) { map.name = v.slice(0, 40); edits++; renderHeader(); } closeSheet(); };
+    body.querySelector('#sb-ok').addEventListener('click', go);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    inp.select();
+  });
+});
 $('#importfile').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0]; e.target.value = '';
   if (!f) return;
@@ -1708,7 +2351,7 @@ async function offerFile(filename, data) {
     toast(e && e.code === 'rate_limited' ? 'A save is already waiting for you to confirm.' : 'The file couldn’t be saved here.');
   }
 }
-function exportJSON() { map.enemyTypes = usedTypes(map); offerFile(`${slug(map.name)}.json`, JSON.stringify(map, null, 1)); }
+function exportJSON() { embedDefs(map); offerFile(`${slug(map.name)}.json`, JSON.stringify(map, null, 1)); }
 function exportPNG() {
   const items = map.items.filter(i => i.floor === map.activeFloor);
   const b = itemsBounds(items) || { x0: -10, y0: -10, x1: 10, y1: 10 };
@@ -1728,7 +2371,7 @@ function exportPNG() {
 }
 
 /* Floors */
-function switchFloor(id) { map.activeFloor = id; selectedId = null; livePre = null; renderAll(); if (!map.sample) LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
+function switchFloor(id) { map.activeFloor = id; clearSel(); renderAll(); if (!map.sample) LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
 $('#floorup').addEventListener('click', () => { const i = floorIndex(); if (i < map.floors.length - 1) switchFloor(map.floors[i + 1].id); });
 $('#floordown').addEventListener('click', () => { const i = floorIndex(); if (i > 0) switchFloor(map.floors[i - 1].id); });
 $('#floorname').addEventListener('click', () => openSheet('Floors', buildFloors));
@@ -1752,7 +2395,7 @@ function buildFloors(body) {
     const above = b.dataset.f === 'above';
     const f = { id: uid(), name: above ? `Floor ${map.floors.length}` : (map.floors.some(x => x.name === 'Basement') ? `Basement ${map.floors.filter(x => x.name.startsWith('Basement')).length + 1}` : 'Basement') };
     mutate(() => { above ? map.floors.push(f) : map.floors.unshift(f); map.activeFloor = f.id; });
-    selectedId = null; renderAll(); refreshSheet();
+    clearSel(); renderAll(); refreshSheet();
   }));
   body.querySelectorAll('[data-fname]').forEach(inp => inp.addEventListener('change', () => {
     const f = map.floors.find(x => x.id === inp.dataset.fname), v = inp.value.trim().slice(0, 30);
@@ -1768,20 +2411,20 @@ function buildFloors(body) {
         map.items = map.items.filter(it => it.floor !== id);
         if (map.activeFloor === id) map.activeFloor = map.floors[Math.max(0, i - 1)].id;
       });
-      selectedId = null; renderAll(); refreshSheet();
+      clearSel(); renderAll(); refreshSheet();
     });
   }));
   body.querySelector('#f-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
 }
 
-$('#edittypes').addEventListener('click', () => openPage('Bestiary', buildBestiary, 'editor'));
+$('#edittypes').addEventListener('click', () => trayTab === 'units' ? openPage('Bestiary', buildBestiary, 'editor') : openPage('Shapes & Symbols', buildShapes, 'editor'));
 
 /* ---------- toolbar, keys, toast ---------- */
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 $('#snapbtn').addEventListener('click', () => { settings.snap = !settings.snap; saveSettings(); renderTools(); toast(settings.snap ? `Snap on: ${settings.step} m steps and ${settings.rotStep}° turns.` : 'Snap off: free placement.'); });
 $('#fitbtn').addEventListener('click', fitView);
 $('#lockmap').addEventListener('click', () => {
-  map.locked = !map.locked; selectedId = null; tool = 'select'; livePre = null;
+  map.locked = !map.locked; clearSel(); tool = 'select';
   markDirty(); renderAll();
   toast(map.locked ? 'Map locked. Nothing can be moved until you unlock it.' : 'Map unlocked.');
 });
@@ -1789,12 +2432,16 @@ $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
-  if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (pageBuild) closePage(); else if (!menuOpen()) { selectedId = null; setTool('select'); } return; }
+  if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (pageBuild) closePage(); else if (!menuOpen()) { clearSel(); setTool('select'); } return; }
   if (menuOpen() || sheetEl || pageBuild) return;
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected() && !selected().locked) { e.preventDefault(); const id = selectedId; mutate(() => { map.items = map.items.filter(i => i.id !== id); }); selectedId = null; renderAll(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selItems().length) {
+    e.preventDefault();
+    const ids = new Set(selItems().filter(i => !i.locked).map(i => i.id));
+    mutate(() => { map.items = map.items.filter(i => !ids.has(i.id)); }); clearSel(); renderAll();
+  }
 });
 let toastTimer = null, toastEl = null;
 function toast(msg) {
@@ -1810,7 +2457,7 @@ new MutationObserver(readTheme).observe(document.documentElement, { attributes: 
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
 
 (function boot() {
-  Bestiary.load();
+  Bestiary.load(); Library.load();
   const lastId = LS.get('mm2.current');
   let m = null;
   if (lastId) { try { m = normalize(Store.loadLocal(lastId)); } catch { m = null; } }
@@ -1818,7 +2465,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDra
   if (m) setStatus('Saved on this device', 'ok');
   Store.init().then(async () => {
     if (!Store.cloud) return;
-    Bestiary.sync();
+    Bestiary.sync(); Library.sync();
     const list = await Store.listCloud();
     const newest = list.sort((a, b) => (b.updated || 0) - (a.updated || 0))[0];
     if (!edits && newest && (map.sample || (newest.updated || 0) > (map.updated || 0)) && newest.id !== map.id) {
