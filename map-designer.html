@@ -751,6 +751,8 @@ function normalize(m) {
 }
 
 /* ---------- storage: Claude account (db) when available, this browser always ---------- */
+// the same file runs as a Claude artifact or as the installed web app; outside Claude it saves on the device
+const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 const Store = {
   db: null, uid: null, dl: null, cloud: false,
   async init() {
@@ -908,7 +910,7 @@ $('#status').addEventListener('click', () => {
   if (st === 'err') toast('This browser is blocking storage, so nothing is being kept. Save a backup file from the Maps menu.');
   else if (map.sample) toast('This is the example map. It saves as your own map as soon as you change something.');
   else if (Store.cloud) toast('Maps save to your Claude account as you work, so they are there whenever you open this page.');
-  else toast('Maps save in this browser only. Save a backup file from the Maps menu now and then.');
+  else toast('Maps save on this device. Use Export everything in Maps now and then to keep a backup.');
 });
 
 /* ---------- geometry ---------- */
@@ -1474,6 +1476,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (pointers.size > 2) return;
   if (Sim.active) { G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
+  if (e.pointerType === 'mouse' && (e.button === 1 || e.button === 2 || spaceHeld)) { G = { type: 'pan', start: p, vx: view.cx, vy: view.cy, moved: true }; return; }
   const [wx, wy] = s2w(view, p.x, p.y);
   if (tool !== 'select' && tool !== 'multi') { G = { type: 'place', start: p, vx: view.cx, vy: view.cy, moved: false }; return; }
   const frozen = map.locked;
@@ -1660,6 +1663,7 @@ function joinToast(it, before) {
   toast(now.mode === 'merge' ? 'Rooms joined into one space. Switch to separate rooms under More.' : 'Rooms joined with a dividing wall. Switch to one room under More.');
 }
 canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', e => { e.preventDefault(); const p = evPos(e); zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
 
@@ -3144,7 +3148,7 @@ async function newMapNamed(name) {
   openMap(blankMap(name.slice(0, 80))); await saveNow();
 }
 function buildMaps(body, fromMenu) {
-  const dlOk = !!Store.dl;
+  const dlOk = !!Store.dl || !IN_CLAUDE;
   body.innerHTML = `
     ${fromMenu ? '' : `<section>
       <h3>Current map</h3>
@@ -3162,10 +3166,11 @@ function buildMaps(body, fromMenu) {
       <h3>Files</h3>
       <div class="btnrow">
         ${dlOk && !fromMenu ? `<button class="btn" data-m="png">${ic('image')}Save image of this floor</button><button class="btn" data-m="json">${ic('save')}Save backup file</button>` : ''}
+        ${dlOk ? `<button class="btn" data-m="all">${ic('save')}Export everything</button>` : ''}
         <button class="btn" data-m="import">${ic('open')}Open backup file</button>
         <button class="btn" data-m="example">Open example map</button>
       </div>
-      <p>${Store.cloud ? 'Maps save to your Claude account automatically. A backup file is a copy you can keep anywhere.' : 'Maps are saved in this browser only. Save a backup file now and then so a cleared browser can’t take them with it.'}</p>
+      <p>${Store.cloud ? 'Maps save to your Claude account automatically.' : 'Maps save on this device.'} Export everything saves all your maps, enemy types, custom shapes and symbols in one file. Open it with Open backup file to restore them here or on another device.</p>
     </section>`;
   const name = body.querySelector('#m-name');
   if (name) name.addEventListener('change', () => { const v = name.value.trim(); if (v && v !== map.name) { map.name = v.slice(0, 80); markDirty(); renderHeader(); listMaps(body); } });
@@ -3175,6 +3180,7 @@ function buildMaps(body, fromMenu) {
     else if (a === 'dup') { await flushSave(); const c = normalize(clone(map)); c.id = uid(); c.name = (map.name + ' copy').slice(0, 80); delete c.sample; openMap(c); await saveNow(); refreshSheet(); toast('Duplicated. You are now editing the copy.'); }
     else if (a === 'png') exportPNG();
     else if (a === 'json') exportJSON();
+    else if (a === 'all') exportEverything();
     else if (a === 'import') $('#importfile').click();
     else if (a === 'example') { await flushSave(); openMap(sampleMap()); closeAll(); hideMenu(); }
   }));
@@ -3226,7 +3232,9 @@ $('#importfile').addEventListener('change', e => {
   const r = new FileReader();
   r.onload = async () => {
     try {
-      const m = normalize(JSON.parse(r.result));
+      const data = JSON.parse(r.result);
+      if (data && data.kind === 'everything') { await importEverything(data); return; }
+      const m = normalize(data);
       await flushSave();
       m.id = uid(); delete m.sample; m.updated = Date.now();
       openMap(m); await saveNow(); closeAll(); hideMenu();
@@ -3236,8 +3244,50 @@ $('#importfile').addEventListener('change', e => {
   r.readAsText(f);
 });
 
+async function exportEverything() {
+  await flushSave();
+  const maps = [];
+  for (const e of await Store.listAll()) { const m = await Store.load(e.id); if (m) { try { const n = normalize(m); embedDefs(n); maps.push(n); } catch {} } }
+  if (!map.sample && !builder && !maps.some(m => m.id === map.id)) { embedDefs(map); maps.push(clone(map)); }
+  const data = { app: 'fps-map-designer', kind: 'everything', v: 3, exported: Date.now(), maps, bestiary: Bestiary.data, library: Library.data };
+  offerFile(`fps-map-designer-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
+}
+// adds what this device doesn't have yet; for anything it already has, the newer copy wins
+async function importEverything(d) {
+  await flushSave();
+  const B = Bestiary.data;
+  for (const t of (d.bestiary && d.bestiary.types) || []) if (!B.types.some(x => x.id === t.id) && !B.deleted.includes(t.id)) B.types.push(normType(t));
+  Bestiary.save();
+  const L = Library.data, inc = Library.norm(d.library || {});
+  for (const x of inc.shapes) { const cur = masterOf(x.id); if (!cur) { if (!L.deleted.includes(x.id)) L.shapes.push(x); } else if ((x.updated || 0) > (cur.updated || 0)) Object.assign(cur, x); }
+  for (const x of inc.symbols) if (!L.symbols.some(s2 => s2.id === x.id) && !L.deleted.includes(x.id)) L.symbols.push(x);
+  Library.save();
+  let n = 0, newest = null;
+  const have = new Map((await Store.listAll()).map(e => [e.id, e.updated || 0]));
+  for (const raw of d.maps || []) {
+    try {
+      const m = normalize(raw); delete m.sample;
+      if (have.has(m.id) && have.get(m.id) >= m.updated) continue;
+      absorbTypes(m); absorbLibrary(m);
+      Store.saveLocal(m); await Store.saveCloud(m); n++;
+      if (!newest || m.updated > newest.updated) newest = m;
+    } catch {}
+  }
+  if (newest) openMap(normalize(clone(newest)));
+  closeAll(); hideMenu(); renderAll();
+  toast(n ? `Imported ${n} map${n === 1 ? '' : 's'}, plus enemy types, custom shapes and symbols.` : 'Everything in that file was already here. Enemy types, shapes and symbols are up to date.');
+}
 async function offerFile(filename, data) {
-  if (!Store.dl) { toast('Saving files isn’t available in this view.'); return; }
+  if (!Store.dl) {
+    if (IN_CLAUDE) { toast('Saving files isn’t available in this view.'); return; }
+    // the installed app saves through the browser's normal download
+    const blob = data instanceof Blob ? data : new Blob([data], { type: filename.endsWith('.png') ? 'image/png' : 'application/json' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('Saved to your downloads.');
+    return;
+  }
   try { await Store.dl.save({ filename, data }); toast('File saved.'); }
   catch (e) {
     if (e && e.code === 'declined') return;
@@ -3323,14 +3373,23 @@ $('#lockmap').addEventListener('click', () => {
 });
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
+let spaceHeld = false;
+document.addEventListener('keyup', e => { if (e.key === ' ') spaceHeld = false; });
+window.addEventListener('blur', () => { spaceHeld = false; });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
   if (Sim.active) { if (e.key === 'Escape') simStop(); else if (e.key === ' ') { e.preventDefault(); $('#simplay').click(); } return; }
+  if (e.key === ' ') { e.preventDefault(); spaceHeld = true; return; }
   if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (pageBuild) closePage(); else if (!menuOpen()) { clearSel(); setTool('select'); } return; }
   if (menuOpen() || sheetEl || pageBuild) return;
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  else if (!mod && !e.altKey && { v: 1, c: 1, p: 1, m: 1, s: 1, f: 1 }[e.key.toLowerCase()]) {
+    const k = e.key.toLowerCase();
+    if (k === 's') $('#snapbtn').click(); else if (k === 'f') fitView();
+    else setTool({ v: 'select', c: 'circle', p: 'poly', m: 'multi' }[k]);
+  }
   else if ((e.key === 'Delete' || e.key === 'Backspace') && selItems().length) {
     e.preventDefault();
     const ids = new Set(selItems().filter(i => !i.locked).map(i => i.id));
@@ -3351,6 +3410,7 @@ new MutationObserver(readTheme).observe(document.documentElement, { attributes: 
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
 
 (function boot() {
+  if (!IN_CLAUDE && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   Bestiary.load(); Library.load();
   const lastId = LS.get('mm2.current');
   let m = null;

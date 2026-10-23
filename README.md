@@ -2,9 +2,24 @@
 
 A top-down FPS map designer for phones, used to block out levels before rebuilding them in Unreal.
 
-The whole app is one file: `map-designer.html`. It's published as a private Claude artifact and runs in the phone's browser.
+The whole app is one file: `map-designer.html`. It runs two ways:
 
-## What it does (v6)
+- **Installed app (PWA):** https://gamesbyaaron.github.io/Map-Maker-2/ — install it from Chrome (phone: ⋮ → Install app; desktop: the install icon in the address bar). Works offline, saves maps on the device, updates itself.
+- **Claude artifact:** the same file published as a private Claude page, saving to the Claude account.
+
+### Building the installed app
+
+`docs/` is generated; don't edit it by hand. After changing `map-designer.html`:
+
+```
+python3 tools/build_pwa.py      # rebuilds docs/ and stamps a new version so installed apps offer "Update ready"
+python3 tools/make_icons.py     # only if the icon design changes
+```
+
+`pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping library (MIT).
+GitHub Pages serves `docs/` (Settings → Pages → Deploy from a branch → this branch, `/docs`).
+
+## What it does (v7)
 
 - Main menu: New Blank, Maps, Shapes & Symbols, Bestiary, Settings, and Continue. Each opens a full page.
 - Shapes & Symbols: a Shape Builder for custom shapes made from circles and polygons. Every placed copy is an instance of the saved master, so editing the master updates them all; Break apart turns one copy back into plain shapes.
@@ -25,4 +40,6 @@ The whole app is one file: `map-designer.html`. It's published as a private Clau
 - Lock the whole map, lock single objects, or lock just an object's size.
 - Settings for room wall thickness, room floor opacity, solid outline thickness and solid fill opacity.
 - Shape merging uses polygon-clipping 0.15.7 from jsDelivr.
+- Export everything / import: every map, enemy type, custom shape and symbol in one file.
+- Desktop: mouse wheel zoom, right-drag or Space+drag to pan, V/C/P/M tools, S snap, F fit, Delete, Ctrl+Z/Y.
 - Autosave to the Claude account (falls back to the browser), plus backup files (.json) and a PNG of a floor.
