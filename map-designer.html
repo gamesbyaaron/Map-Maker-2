@@ -303,7 +303,30 @@ i b { font-weight: 600; }
 .simbar strong { font: 600 15px/1.2 var(--font-display); }
 .simbar strong.win { color: var(--ok); } .simbar strong.lose { color: var(--danger); }
 .simbar .grow span { font: 500 12px/1.3 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-#simspeed { font-size: 14px; font-weight: 600; }
+#simspeed, #simbatch { font-size: 14px; font-weight: 600; }
+.simres {
+  position: absolute; left: 8px; right: 8px; bottom: 80px; margin-inline: auto; max-width: 560px; max-height: calc(100% - 100px); overflow-y: auto; overscroll-behavior: contain;
+  display: grid; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+}
+.simres .res-head { display: flex; align-items: center; gap: 8px; }
+.simres .res-head .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.simres .res-head strong { font: 600 16px var(--font-display); }
+.simres .res-head span { font-size: 12.5px; color: var(--muted); }
+.simres .res-head [data-r="hide"] svg { transform: none; }
+.simres h4 { margin: 4px 0 0; font: 600 11px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.res-list { display: grid; gap: 6px; }
+.res-row { display: grid; grid-template-columns: 12px auto 1fr auto auto auto; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); text-align: left; }
+.res-row i { width: 12px; height: 12px; border-radius: 50%; }
+.res-row .pill { justify-self: start; font: 600 10px var(--font-display); letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
+.res-row .pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.res-row .pill.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.res-row .mono { font-size: 12.5px; }
+.res-row .watch { color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.res-rooms { display: grid; gap: 4px; }
+.res-rooms div { display: flex; gap: 10px; font-size: 13px; }
+.res-rooms b { min-width: 56px; font-family: var(--font-display); }
+.res-rooms span { color: var(--muted); }
+@media (max-width: 420px) { .res-row { grid-template-columns: 12px auto 1fr auto auto; } .res-row .watch { display: none; } }
 .card-body label .seg { justify-self: start; text-transform: none; letter-spacing: 0; font-family: var(--font-body); font-size: 14px; }
 .sim-ui .dock, .sim-ui .floors, .sim-ui #lockmap, .sim-ui #undo, .sim-ui #redo, .sim-ui #status { display: none !important; }
 .toast {
@@ -369,11 +392,13 @@ i b { font-weight: 600; }
   <div class="scale" id="scale"><span class="sq"></span><span id="scaletext">= 1 m</span></div>
   <div class="bar" id="bar" hidden></div>
   <button class="simfab" id="simfab"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Simulate</button>
+  <div class="simres" id="simres" hidden></div>
   <div class="simbar" id="simbar" hidden>
     <div class="grow"><strong id="simstate">Running</strong><span id="simsub">0:00</span></div>
     <button class="iconbtn" id="simrestart" aria-label="Restart"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
     <button class="iconbtn" id="simplay" aria-label="Pause"><svg viewBox="0 0 24 24"><path id="simplayicon" d="M8 5v14M16 5v14"/></svg></button>
     <button class="iconbtn mono" id="simspeed" aria-label="Playback speed">1×</button>
+    <button class="iconbtn mono" id="simbatch" aria-label="Run 10 times">10×</button>
     <button class="iconbtn" id="simclose" aria-label="Back to editing"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
 </main>
@@ -492,9 +517,10 @@ const LS = {
 };
 
 /* ---------- settings ---------- */
+const DEFAULT_PLAYER = { hp: 100, speed: 6, dmg: 20, rate: 3, acc: 70, range: 15 };
 const settings = (() => {
   const d = { snap: LS.get('mm2.snap') !== '0', step: 0.5, rotStep: 15, below: LS.get('mm2.below') !== '0', style: 'room', join: 'merge',
-    roomLine: 0.3, roomAlpha: 0.35, solidLine: 1.5, solidAlpha: 1 };
+    roomLine: 0.3, roomAlpha: 0.35, solidLine: 1.5, solidAlpha: 1, aggr: 1, player: { ...DEFAULT_PLAYER } };
   try { return { ...d, ...JSON.parse(LS.get('mm2.settings') || '{}') }; } catch { return d; }
 })();
 const saveSettings = () => LS.set('mm2.settings', JSON.stringify(settings));
@@ -1102,7 +1128,11 @@ function drawFloor(c, R, floorId) {
   const list = map.items.filter(i => i.floor === floorId);
   const sim = Sim.active && floorId === Sim.floor;
   for (const it of list) if (!isMarker(it) && !isRoom(it) && it.kind !== 'door') (it.kind === 'custom' ? drawCustom : drawShape)(c, R, it);
-  for (const it of list) if (it.kind === 'door') drawDoor(c, R, it, sim ? (Sim.doors.find(d => d.id === it.id)?.locked ? 'locked' : 'open') : undefined);
+  const doorsHere = list.filter(i => i.kind === 'door'), segs = doorsHere.length && !sim ? wallSegs(floorId) : null;
+  for (const it of doorsHere) {
+    drawDoor(c, R, it, sim ? (Sim.doors.find(d => d.id === it.id)?.locked ? 'locked' : 'open') : undefined);
+    if (segs && !segs.some(([a, b]) => distSeg(it.x, it.y, a, b) < 0.25)) drawDoorWarning(c, R, it);
+  }
   for (const it of list) if (it.kind === 'symbol') drawSymbol(c, R, it);
   if (sim) return;   // the simulation draws its own player and enemies
   for (const it of list) if (it.kind === 'enemy') drawEnemy(c, R, it);
@@ -1192,6 +1222,13 @@ function drawDoor(c, R, it, state) {
   c.beginPath(); c.moveTo(-hw + 2, 0); c.lineTo(hw - 2, 0); c.stroke();
   c.restore();
 }
+function drawDoorWarning(c, R, it) {
+  const [x, y] = w2s(R, it.x, it.y);
+  c.save(); c.beginPath(); c.arc(x, y - 16, 8, 0, Math.PI * 2); c.fillStyle = T.warn; c.fill(); c.lineWidth = 2; c.strokeStyle = T.ring; c.stroke();
+  c.fillStyle = '#111820'; c.font = `700 11px ${T.display}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('!', x, y - 15.5); c.restore();
+}
+const doorOffWall = d => !wallSegs(d.floor).some(([a, b]) => distSeg(d.x, d.y, a, b) < 0.25);
+const mergedGroupAt = d => roomGroups(d.floor).find(g => g.size > 1 && g.mode === 'merge' && g.fills.some(f => inMulti(d.x, d.y, f.mp)));
 function symbolPath(c, icon, x, y, r) {
   c.beginPath();
   if (icon === 'square') c.rect(x - r * 0.88, y - r * 0.88, r * 1.76, r * 1.76);
@@ -1743,7 +1780,7 @@ function renderBar() {
     syncBar(); return;
   }
   const it = items[0], g = groupOf(it);
-  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock,
+  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock, it.kind === 'door' && doorOffWall(it),
     it.kind === 'enemy' ? Bestiary.data.types.map(t => t.id + t.name + t.color).join() : it.kind === 'symbol' ? Library.data.symbols.map(t => t.id + t.name + t.color).join() : ''].join('|');
   if (key !== barKey) { bar.innerHTML = barHTML(it, g); bindBar(it); barKey = key; }
   syncBar();
@@ -1880,6 +1917,8 @@ function barHTML(it, g) {
     <div class="prow"><span class="lbl">Locking</span><div class="ctrl"><div class="seg"><button data-dlock="clear">Locks until cleared</button><button data-dlock="open">Always open</button></div></div></div>
     <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
     ${pos}
+    ${doorOffWall(it) ? `<div class="prow"><span class="lbl" style="color:var(--warn)">Not on a wall</span><div class="ctrl"><span class="note">This door doesn't cut a wall, so it won't block or lock anything.${mergedGroupAt(it) ? ' It sits inside rooms joined as One room, which have no walls between them.' : ''}</span>
+      ${mergedGroupAt(it) ? `<button class="smallbtn" data-act="splitrooms">Switch to Separate rooms</button>` : ''}</div></div>` : ''}
     <p style="margin:0;color:var(--muted);font-size:12.5px">Doors snap onto room walls and cut a gap. In the simulation, a door that locks stays shut while the player's room still has enemies in it.</p>`;
   } else if (it.kind === 'player') {
     more = `<div class="prow"><label class="lbl" for="p-rot">Facing</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>` + pos;
@@ -1929,6 +1968,13 @@ function bindBar(it) {
     else if (act === 'lock') mutate(() => { x.lock = !x.lock; });
     else if (act === 'editmaster') openBuilder(x.ref, null);
     else if (act === 'explode') breakApart(x);
+    else if (act === 'splitrooms') {
+      const g = mergedGroupAt(x);
+      if (g) {
+        mutate(() => { map.items.forEach(i => { if (g.ids.has(i.id)) i.walls = 'divide'; }); snapDoor(x, x.x, x.y); });
+        toast(doorOffWall(x) ? 'Switched to Separate rooms. Drag the door onto the new dividing wall.' : 'Switched to Separate rooms and moved the door onto the dividing wall.');
+      }
+    }
   });
   on('[data-setsym]', (x, b) => mutate(() => { x.sym = b.dataset.setsym; }));
   on('[data-dstep]', (x, b) => mutate(() => { x.w = round2(clamp(x.w + +b.dataset.dstep * 0.1, 0.5, 8)); }));
@@ -1986,7 +2032,7 @@ function syncBar() {
   }
   if (it.kind === 'symbol') { txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-setsym', it.sym); return; }
   if (it.kind === 'door') {
-    txt('dims', `${fmt(it.w)} m · ${it.lockMode === 'open' ? 'always open' : 'locks until cleared'}`);
+    txt('dims', doorOffWall(it) ? 'Not on a wall' : `${fmt(it.w)} m · ${it.lockMode === 'open' ? 'always open' : 'locks until cleared'}`);
     set('#p-dw', it.w); set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`); pressed('data-dlock', it.lockMode);
     return;
   }
@@ -2045,14 +2091,19 @@ function armButton(btn, label, onConfirm) {
 
 /* ---------- simulation ----------
    The current floor becomes a 0.5 m grid: walls and solids block movement and sight, doors are gaps that close while locked.
-   The player explores toward unseen ground and fights what it sees; enemies wake when they see or hear the player.
-   Entering a room that still has enemies locks its doors until the room is clear. */
-const SIM = { dt: 0.05, cell: 0.5, replan: 0.25, maxTime: 300, sight: 45, hear: 14, melee: 1.3,
-  player: { hp: 100, speed: 4.5, range: 40, acc: 75, dmg: 25, rate: 3 } };
+   The player plays like Doom by default: it keeps moving, strafes while it shoots, and pushes toward enemies at close range.
+   Enemies wake when they see or hear the player. Entering a room that still has enemies locks its doors until it is clear.
+   Every run is seeded, so any run can be replayed exactly. */
+const SIM = { dt: 0.05, cell: 0.5, replan: 0.25, maxTime: 300, sight: 45, hear: 14, melee: 1.3 };
 const NB8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 const Sim = { active: false, speed: 1 };
+let Batch = null;                                  // the last Run 10×: one summary per run plus the summed damage heatmap
 const clock = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const lerp = (a, b, t) => a + (b - a) * t;
+const playerStats = () => ({ ...DEFAULT_PLAYER, ...(settings.player || {}) });
+const isObjective = s => s.id === 'objective' || s.id === 'exit' || /exit|objective/i.test(s.name);
 function inMulti(x, y, mp) { let inside = false; for (const poly of mp) for (const ring of poly) if (pointInPoly(x, y, ring)) inside = !inside; return inside; }
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 function buildSimWorld(fl, items) {
   const groups = [...roomGroups(fl)], solids = [];
@@ -2066,14 +2117,23 @@ function buildSimWorld(fl, items) {
   // a solid that a character starts on is a platform they stand on, not a block
   const people = items.filter(i => i.kind === 'player' || i.kind === 'enemy');
   for (let k = solids.length - 1; k >= 0; k--) if (people.some(i => pointInPoly(i.x, i.y, solids[k]))) solids.splice(k, 1);
-  const doors = items.filter(i => i.kind === 'door').map(d => ({ id: d.id, x: d.x, y: d.y, w: d.w, rot: d.rot, lockMode: d.lockMode, locked: false, rooms: [] }));
   const segs = [];
   for (const g of groups) for (const poly of g.walls) for (const ring of poly) for (let k = 0; k < ring.length; k++) {
     const a = ring[k], b = ring[(k + 1) % ring.length]; if (a[0] !== b[0] || a[1] !== b[1]) segs.push([a, b]);
   }
+  // a door that isn't on a wall cuts nothing, so it never locks
+  const doors = items.filter(i => i.kind === 'door').map(d => ({ id: d.id, x: d.x, y: d.y, w: d.w, rot: d.rot, lockMode: d.lockMode, locked: false, rooms: [],
+    onWall: segs.some(([a, b]) => distSeg(d.x, d.y, a, b) < 0.25) }));
   // one-room groups are a single room; separate-rooms groups give one room per region
   const rooms = [];
   for (const g of groups) { if (g.size === 1) rooms.push({ mp: g.fills[0].mp }); else if (g.mode === 'merge') rooms.push({ mp: g.walls }); else for (const f of g.fills) rooms.push({ mp: f.mp }); }
+  rooms.forEach((r, k) => {
+    r.label = 'R' + (k + 1);
+    const ring = r.mp[0] && r.mp[0][0]; if (!ring) return;
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < ring.length - 1; i++) { const [x0, y0] = ring[i], [x1, y1] = ring[i + 1], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+    if (Math.abs(a) > 1e-6) { r.cx = cx / (3 * a); r.cy = cy / (3 * a); } else { const b = ringBox(ring); r.cx = (b.x0 + b.x1) / 2; r.cy = (b.y0 + b.y1) / 2; }
+  });
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
   segs.forEach(([a, b]) => { grow(...a); grow(...b); }); solids.forEach(r => r.forEach(p => grow(...p))); items.forEach(i => grow(i.x, i.y));
@@ -2094,7 +2154,7 @@ function buildSimWorld(fl, items) {
   const doorRects = doors.map(d => doorRect(d, wallT / 2 + 0.6)), solidBoxes = solids.map(ringBox);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const c = j * nx + i, x = x0 + (i + 0.5) * cs, y = y0 + (j + 0.5) * cs;
-    const di = doorRects.findIndex(r => pointInPoly(x, y, r));
+    const di = doorRects.findIndex((r, k) => doors[k].onWall && pointInPoly(x, y, r));
     doorAt[c] = di;
     if (di < 0) {
       let dmin = Infinity;
@@ -2114,7 +2174,7 @@ function buildSimWorld(fl, items) {
     const a = rad(d.rot), ox = -Math.sin(a) * 0.9, oy = Math.cos(a) * 0.9;
     d.rooms = [...new Set([roomOf(d.x + ox, d.y + oy), roomOf(d.x - ox, d.y - oy)].filter(r => r >= 0))];
   }
-  return { grid: { x0, y0, cs, nx, ny, walk, opaque, doorAt }, doors, rooms, roomOf, seen: new Uint8Array(N),
+  return { floor: fl, grid: { x0, y0, cs, nx, ny, walk, opaque, doorAt }, doors, rooms, roomOf, seen: new Uint8Array(N),
     dist: new Int32Array(N), q: new Int32Array(N), gfield: new Int32Array(N), gq: new Int32Array(N) };
 }
 const cellAt = (x, y) => { const g = Sim.grid, i = Math.floor((x - g.x0) / g.cs), j = Math.floor((y - g.y0) / g.cs); return i < 0 || j < 0 || i >= g.nx || j >= g.ny ? -1 : j * g.nx + i; };
@@ -2146,6 +2206,14 @@ function bfs(start, dist, q) {
   return t;
 }
 function moveToward(a, tx, ty, step) { const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy); if (d < 1e-6) return; const s = Math.min(step, d); a.x += dx / d * s; a.y += dy / d * s; }
+// walk in a direction, bending up to 90° around walls; false when every bend is blocked
+function tryMove(a, dx, dy, step) {
+  for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.57, -1.57]) {
+    const c = Math.cos(turn), s = Math.sin(turn), vx = dx * c - dy * s, vy = dx * s + dy * c, nx = a.x + vx * step, ny = a.y + vy * step;
+    if (canWalk(cellAt(nx, ny)) && canWalk(cellAt(nx + vx * 0.3, ny + vy * 0.3))) { a.x = nx; a.y = ny; return true; }
+  }
+  return false;
+}
 // step to the neighbouring cell that lowers (dir -1) or raises (dir +1) a distance field
 function descend(a, field, step, dir = -1) {
   const g = Sim.grid, cur = cellAt(a.x, a.y); if (cur < 0) return false;
@@ -2162,33 +2230,59 @@ function descend(a, field, step, dir = -1) {
   const [tx, ty] = cellXY(best); moveToward(a, tx, ty, step);
   return true;
 }
+function setGoal(c, kind) { Sim.goalKind = kind; if (c !== Sim.goal) { Sim.goal = c; if (c >= 0) bfs(c, Sim.gfield, Sim.gq); } }
 const hitChance = (acc, d, range) => clamp(acc / 100 * (1 - 0.6 * (d / range) ** 2), 0.05, 0.97);
+// the player is accurate up to half its range, then falls off fast, so long shots are rare
+const playerHit = (acc, d, range) => { const h = range / 2, f = d <= h ? 1 : Math.max(0, 1 - 0.85 * ((d - h) / h) ** 1.5); return clamp(acc / 100 * f, 0.03, 0.97); };
 
-function simStart() {
+/* run control */
+function simPrepare() {
   const fl = map.activeFloor, items = map.items.filter(i => i.floor === fl);
-  const players = items.filter(i => i.kind === 'player'), foes = items.filter(i => i.kind === 'enemy');
-  if (!players.length) { toast('Place a player on this floor first. It’s in the Characters tab.'); return; }
-  if (!foes.length) { toast('Place at least one enemy on this floor first.'); return; }
-  clearSel(); tool = 'select';
-  const P = players[0];
-  Object.keys(Sim).forEach(k => { if (k !== 'speed') delete Sim[k]; });
-  Object.assign(Sim, buildSimWorld(fl, items), {
-    active: true, floor: fl, t: 0, acc: 0, next: 0, playing: true, over: null, last: performance.now(),
-    fx: [], proj: [], trail: [], msg: '', msgT: 0, lockRoom: -1, stuckT: 0, goal: -1, dmgTaken: 0,
-    player: { x: P.x, y: P.y, hp: SIM.player.hp, cd: 0, face: rad(P.rot || 0) - Math.PI / 2, side: 1, sideT: 0 },
-    foes: foes.map(f => { const t = typeOf(f.type); return { id: f.id, type: t, x: f.x, y: f.y, hp: t.hp, cd: Math.random() / t.rate, alert: false, face: Math.PI / 2, dead: false }; }),
+  if (!items.some(i => i.kind === 'player')) { toast('Place a player on this floor first. It’s in the Characters tab.'); return false; }
+  if (!items.some(i => i.kind === 'enemy')) { toast('Place at least one enemy on this floor first.'); return false; }
+  const key = [fl, settings.roomLine, Library.data.updated, JSON.stringify(items)].join('|');
+  if (!Sim.world || Sim.worldKey !== key) { Sim.world = buildSimWorld(fl, items); Sim.worldKey = key; Batch = null; }
+  return true;
+}
+function simReset(seed) {
+  const W = Sim.world, items = map.items.filter(i => i.floor === W.floor), P = playerStats(), rnd = mulberry32(seed);
+  const pl = items.find(i => i.kind === 'player'), obj = items.find(i => i.kind === 'symbol' && isObjective(symbolOf(i.sym)));
+  W.doors.forEach(d => { d.locked = false; });
+  W.seen.fill(0);
+  Object.assign(Sim, { grid: W.grid, doors: W.doors, rooms: W.rooms, roomOf: W.roomOf, seen: W.seen, dist: W.dist, q: W.q, gfield: W.gfield, gq: W.gq, floor: W.floor });
+  Object.assign(Sim, {
+    seed, rand: rnd, P, aggr: settings.aggr ?? 1, t: 0, acc: 0, next: 0, over: null, fx: [], proj: [], trail: [], msg: '', msgT: 0,
+    lockRoom: -1, stuckT: 0, goal: -1, goalKind: '', dmgTaken: 0, dmgBy: {}, roomLog: [], known: new Map(), heat: new Float32Array(W.grid.nx * W.grid.ny),
+    obj: obj ? { x: obj.x, y: obj.y, cell: cellAt(obj.x, obj.y), name: symbolOf(obj.sym).name } : null,
+    player: { x: pl.x, y: pl.y, hp: P.hp, cd: 0, face: rad(pl.rot || 0) - Math.PI / 2, side: rnd() < 0.5 ? 1 : -1, sideT: 0 },
+    foes: items.filter(i => i.kind === 'enemy').map(f => { const t = typeOf(f.type); return { id: f.id, type: t, x: f.x, y: f.y, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false }; }),
   });
+  simTick();
+}
+const newSeed = () => (Math.random() * 4294967296) >>> 0;
+function simOpen() {
+  if (!simPrepare()) return;
+  clearSel(); tool = 'select';
+  Sim.active = true;
   document.body.classList.add('sim-ui');
   $('#simbar').hidden = false;
-  if (players.length > 1) simMsg('Simulating with the first player on this floor.');
-  simTick();
   renderAll();
-  requestAnimationFrame(simLoop);
+  simLive(newSeed(), null);
+  const players = map.items.filter(i => i.floor === map.activeFloor && i.kind === 'player').length;
+  if (players > 1) simMsg('Simulating with the first player on this floor.');
+}
+// a watchable run: a fresh one, or run k of the last Run 10× replayed from its seed
+function simLive(seed, replay) {
+  simReset(seed);
+  Sim.mode = replay == null ? 'live' : 'replay'; Sim.replay = replay;
+  Sim.playing = true; Sim.last = performance.now();
+  $('#simres').hidden = true;
+  if (!Sim.loop) { Sim.loop = true; requestAnimationFrame(simLoop); }
 }
 function simStop() {
-  Sim.active = false;
+  Sim.active = false; Batch = Batch && Batch.done === Batch.n ? Batch : null;
   document.body.classList.remove('sim-ui');
-  $('#simbar').hidden = true;
+  $('#simbar').hidden = true; $('#simres').hidden = true;
   renderAll();
 }
 const simMsg = (text, secs = 3) => { Sim.msg = text; Sim.msgT = Sim.t + secs; };
@@ -2196,7 +2290,7 @@ const simMsg = (text, secs = 3) => { Sim.msg = text; Sim.msgT = Sim.t + secs; };
 const doorBusy = k => [Sim.player, ...Sim.foes.filter(f => !f.dead)].some(a => { const c = cellAt(a.x, a.y); return c >= 0 && Sim.grid.doorAt[c] === k; });
 function setRoomDoors(r, locked) {
   let n = 0;
-  Sim.doors.forEach((d, k) => { if (d.lockMode === 'clear' && d.rooms.includes(r)) { d.locked = locked && !doorBusy(k); n++; } });
+  Sim.doors.forEach((d, k) => { if (d.lockMode === 'clear' && d.onWall && d.rooms.includes(r)) { d.locked = locked && !doorBusy(k); n++; } });
   return n;
 }
 // every replan: room locks, fresh distance fields, and what the player can see
@@ -2205,13 +2299,17 @@ function simTick() {
   const pc = cellAt(p.x, p.y), inDoor = pc >= 0 && Sim.grid.doorAt[pc] >= 0, pr = Sim.roomOf(p.x, p.y);
   const inRoom = r => alive.filter(f => Sim.roomOf(f.x, f.y) === r);
   if (Sim.lockRoom >= 0) {
-    if (!inRoom(Sim.lockRoom).length) { setRoomDoors(Sim.lockRoom, false); Sim.lockRoom = -1; simMsg('Room cleared. Doors open.'); }
-    else setRoomDoors(Sim.lockRoom, true);
+    if (!inRoom(Sim.lockRoom).length) {
+      setRoomDoors(Sim.lockRoom, false);
+      const log = Sim.roomLog[Sim.roomLog.length - 1]; log.t1 = Sim.t; log.dmg = Sim.dmgTaken - log.dmg0;
+      simMsg(`${Sim.rooms[Sim.lockRoom].label} cleared. Doors open.`); Sim.lockRoom = -1;
+    } else setRoomDoors(Sim.lockRoom, true);
   } else if (pr >= 0 && !inDoor) {
     const here = inRoom(pr);
     if (here.length && setRoomDoors(pr, true)) {
       Sim.lockRoom = pr; here.forEach(f => { f.alert = true; });
-      simMsg(`Doors locked: clear ${here.length} ${here.length === 1 ? 'enemy' : 'enemies'}.`, 4);
+      Sim.roomLog.push({ room: pr, t0: Sim.t, dmg0: Sim.dmgTaken });
+      simMsg(`${Sim.rooms[pr].label} locked: clear ${here.length} ${here.length === 1 ? 'enemy' : 'enemies'}.`, 4);
     }
   }
   Sim.qlen = bfs(pc, Sim.dist, Sim.q);
@@ -2220,7 +2318,7 @@ function simTick() {
     for (let r = 0; r < SIM.sight; r += 0.25) { const c = cellAt(p.x + dx * r, p.y + dy * r); if (c < 0) break; Sim.seen[c] = 1; if (r > 0.5 && blocksSight(c)) break; }
   }
   if (Sim.goal >= 0) bfs(Sim.goal, Sim.gfield, Sim.gq);
-  Sim.trail.push([p.x, p.y]); if (Sim.trail.length > 800) Sim.trail.shift();
+  Sim.trail.push([round2(p.x), round2(p.y)]);
 }
 // nearest unexplored ground the player can reach, otherwise the nearest living enemy it can reach
 function pickGoal() {
@@ -2229,60 +2327,95 @@ function pickGoal() {
   for (const f of Sim.foes) { if (f.dead) continue; const c = cellAt(f.x, f.y); if (c >= 0 && Sim.dist[c] >= 0 && Sim.dist[c] < bd) { bd = Sim.dist[c]; best = c; } }
   return best;
 }
-function hurtPlayer(dmg) { Sim.player.hp -= dmg; Sim.dmgTaken += dmg; }
-function hurtFoe(f, dmg) { f.hp -= dmg; f.alert = true; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; } }
-function shotFx(x1, y1, x2, y2, hit, color) { const m = hit ? 0 : 1.6; Sim.fx.push({ k: 'shot', x1, y1, x2: x2 + (Math.random() - 0.5) * m, y2: y2 + (Math.random() - 0.5) * m, t: Sim.t, color }); }
+function hurtPlayer(dmg, type) {
+  const p = Sim.player, c = cellAt(p.x, p.y);
+  p.hp -= dmg; Sim.dmgTaken += dmg;
+  if (c >= 0) Sim.heat[c] += dmg;
+  Sim.dmgBy[type.name] = (Sim.dmgBy[type.name] || 0) + dmg;
+}
+function hurtFoe(f, dmg) { f.hp -= dmg; f.alert = true; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; Sim.known.delete(f); } }
+function shotFx(x1, y1, x2, y2, hit, color) { const m = hit ? 0 : 1.6; Sim.fx.push({ k: 'shot', x1, y1, x2: x2 + (Sim.rand() - 0.5) * m, y2: y2 + (Sim.rand() - 0.5) * m, t: Sim.t, color }); }
 function playerAct(dt) {
-  const p = Sim.player, P = SIM.player; p.cd -= dt;
+  const p = Sim.player, P = Sim.P, a = Sim.aggr, rnd = Sim.rand;
+  p.cd -= dt;
+  const reach = P.range * (1 + 1.5 * (1 - a));          // tactical players take longer shots
   const dist = f => Math.hypot(f.x - p.x, f.y - p.y);
   const vis = Sim.foes.filter(f => !f.dead && dist(f) <= SIM.sight && los(p.x, p.y, f.x, f.y));
+  for (const f of vis) Sim.known.set(f, [f.x, f.y]);
+  const step = P.speed * dt;
   if (vis.length) {
-    // rushers that are close come first, then whoever is nearest
-    const rushers = vis.filter(f => f.type.attack === 'melee' && dist(f) < 7).sort((a, b) => dist(a) - dist(b));
-    const tgt = rushers[0] || vis.sort((a, b) => dist(a) - dist(b))[0], d = dist(tgt);
+    // close rushers come first, then whoever is nearest
+    const byDist = (x, y) => dist(x) - dist(y);
+    const rushers = vis.filter(f => f.type.attack === 'melee' && dist(f) < 7).sort(byDist);
+    const tgt = rushers[0] || [...vis].sort(byDist)[0], d = dist(tgt);
     p.face = Math.atan2(tgt.y - p.y, tgt.x - p.x);
-    if (p.cd <= 0 && d <= P.range) {
+    if (p.cd <= 0 && d <= reach) {
       p.cd = 1 / P.rate;
-      const hit = Math.random() < hitChance(P.acc, d, P.range);
+      const hit = rnd() < playerHit(P.acc, d, reach);
       shotFx(p.x, p.y, tgt.x, tgt.y, hit, PLAYER_COLOR);
       if (hit) hurtFoe(tgt, P.dmg);
       for (const f of Sim.foes) if (!f.dead && dist(f) <= SIM.hear) f.alert = true;
     }
-    const step = P.speed * dt;
-    if (rushers.length && dist(rushers[0]) < 5) {
-      // back away from a rusher while shooting it
-      const cur = cellAt(p.x, p.y), g = Sim.grid, i = cur % g.nx, j = (cur - i) / g.nx; let best = null, bd = dist(rushers[0]);
-      for (const [di, dj] of NB8) { const n = (j + dj) * g.nx + (i + di); if (i + di < 0 || i + di >= g.nx || !canWalk(n)) continue; const [x, y] = cellXY(n), dd = Math.hypot(x - rushers[0].x, y - rushers[0].y); if (dd > bd) { bd = dd; best = [x, y]; } }
-      if (best) moveToward(p, best[0], best[1], step * 0.85);
-    } else if (vis.some(f => f.type.attack === 'projectile')) {
-      // strafe against projectiles, switching sides now and then or when blocked
-      p.sideT -= dt; if (p.sideT <= 0) { p.side *= -1; p.sideT = 0.8 + Math.random() * 0.8; }
-      const ox = -Math.sin(p.face) * p.side, oy = Math.cos(p.face) * p.side;
-      if (canWalk(cellAt(p.x + ox * 0.6, p.y + oy * 0.6))) moveToward(p, p.x + ox, p.y + oy, step * 0.7); else { p.side *= -1; p.sideT = 1; }
-    } else if (d > P.range * 0.9) moveToward(p, tgt.x, tgt.y, step);
+    // movement: close in (or back off a rusher), strafe around the target, and sidestep incoming projectiles
+    const ux = (tgt.x - p.x) / d, uy = (tgt.y - p.y) / d, want = lerp(reach * 0.75, 5, a);
+    let mx = 0, my = 0;
+    if (tgt.type.attack === 'melee' && d < 3.5) { mx -= ux; my -= uy; }
+    else if (d > want) { mx += ux; my += uy; }
+    else if (d < want * 0.5 && a < 0.5) { mx -= ux * 0.6; my -= uy * 0.6; }
+    p.sideT -= dt;
+    if (p.sideT <= 0) { p.side *= -1; p.sideT = (0.5 + rnd() * 0.9) * (a >= 0.5 ? 1 : 2); }
+    const sw = 0.2 + 0.9 * a;
+    mx += -uy * p.side * sw; my += ux * p.side * sw;
+    for (const b of Sim.proj) {
+      const rx = p.x - b.x, ry = p.y - b.y, sp2 = b.vx * b.vx + b.vy * b.vy, t = (rx * b.vx + ry * b.vy) / sp2;
+      if (t < 0 || t > 1.2) continue;
+      if (Math.hypot(b.x + b.vx * t - p.x, b.y + b.vy * t - p.y) < 1) {
+        const sp = Math.sqrt(sp2), s = Math.sign(b.vx * ry - b.vy * rx) || 1;
+        mx += -b.vy / sp * s * 1.6; my += b.vx / sp * s * 1.6;
+      }
+    }
+    const ml = Math.hypot(mx, my), pace = a >= 0.5 ? 1 : lerp(0.55, 1, a * 2);
+    if (ml > 0.01 && !tryMove(p, mx / ml, my / ml, step * pace)) {
+      p.side *= -1;
+      if (d > want) { setGoal(cellAt(tgt.x, tgt.y), 'chase'); descend(p, Sim.gfield, step); }
+    }
     Sim.stuckT = 0;
     return;
   }
+  // nobody in sight: the objective if it can be reached, then (when aggressive) where an enemy was last seen,
+  // then unexplored ground, then any enemy still alive
   const here = cellAt(p.x, p.y);
-  if (Sim.goal < 0 || Sim.seen[Sim.goal] && !Sim.foes.some(f => !f.dead && cellAt(f.x, f.y) === Sim.goal) || Sim.dist[Sim.goal] < 0 || Sim.goal === here) {
-    const g = pickGoal();
-    if (g !== Sim.goal) { Sim.goal = g; if (g >= 0) bfs(g, Sim.gfield, Sim.gq); }
+  let goal = -1, kind = '';
+  if (Sim.obj && Sim.obj.cell >= 0 && Sim.dist[Sim.obj.cell] >= 0) { goal = Sim.obj.cell; kind = 'obj'; }
+  if (goal < 0 && a > 0.3) {
+    let bd = Infinity;
+    for (const [f, pos] of Sim.known) {
+      if (f.dead) { Sim.known.delete(f); continue; }
+      const c = cellAt(pos[0], pos[1]);
+      if (c < 0 || Sim.dist[c] < 0) continue;
+      if (Sim.dist[c] <= 1) { Sim.known.delete(f); continue; }
+      if (Sim.dist[c] < bd) { bd = Sim.dist[c]; goal = c; kind = 'known'; }
+    }
   }
-  if (Sim.goal < 0) { Sim.stuckT += dt; return; }
+  if (goal < 0) {
+    const g = Sim.goal, keep = g >= 0 && Sim.goalKind === 'explore' && !Sim.seen[g] && Sim.dist[g] >= 0 && g !== here;
+    goal = keep ? g : pickGoal(); kind = 'explore';
+  }
+  if (goal < 0) { Sim.stuckT += dt; return; }
+  setGoal(goal, kind);
   Sim.stuckT = 0;
-  const step = P.speed * dt;
-  if (!descend(p, Sim.gfield, step) && Sim.goal !== here) Sim.stuckT += dt;
-  const [gx, gy] = cellXY(Sim.goal); p.face = Math.atan2(gy - p.y, gx - p.x);
+  if (!descend(p, Sim.gfield, step) && goal !== here) Sim.stuckT += dt;
+  const [gx, gy] = cellXY(goal); p.face = Math.atan2(gy - p.y, gx - p.x);
 }
 function foeAct(f, dt) {
-  const p = Sim.player, T = f.type, d = Math.hypot(p.x - f.x, p.y - f.y); f.cd -= dt;
+  const p = Sim.player, T = f.type, d = Math.hypot(p.x - f.x, p.y - f.y), rnd = Sim.rand; f.cd -= dt;
   const sees = d <= Math.max(T.range * 1.2, 20) && los(f.x, f.y, p.x, p.y);
   if (sees) f.alert = true;
   if (!f.alert) return;
   f.face = Math.atan2(p.y - f.y, p.x - f.x);
   const step = T.speed * dt;
   if (T.attack === 'melee') {
-    if (d <= SIM.melee) { if (f.cd <= 0) { f.cd = 1 / T.rate; hurtPlayer(T.dmg); Sim.fx.push({ k: 'melee', x: p.x, y: p.y, t: Sim.t, color: T.color }); } }
+    if (d <= SIM.melee) { if (f.cd <= 0) { f.cd = 1 / T.rate; hurtPlayer(T.dmg, T); Sim.fx.push({ k: 'melee', x: p.x, y: p.y, t: Sim.t, color: T.color }); } }
     else if (sees && d < 2.5) moveToward(f, p.x, p.y, step);
     else descend(f, Sim.dist, step);
     return;
@@ -2290,10 +2423,10 @@ function foeAct(f, dt) {
   if (sees && d <= T.range) {
     if (f.cd <= 0) {
       f.cd = 1 / T.rate;
-      if (T.attack === 'hitscan') { const hit = Math.random() < hitChance(T.acc, d, T.range); shotFx(f.x, f.y, p.x, p.y, hit, T.color); if (hit) hurtPlayer(T.dmg); }
+      if (T.attack === 'hitscan') { const hit = rnd() < hitChance(T.acc, d, T.range); shotFx(f.x, f.y, p.x, p.y, hit, T.color); if (hit) hurtPlayer(T.dmg, T); }
       else {
-        const a = Math.atan2(p.y - f.y, p.x - f.x) + (1 - T.acc / 100) * 0.5 * (Math.random() * 2 - 1);
-        Sim.proj.push({ x: f.x, y: f.y, vx: Math.cos(a) * T.pspeed, vy: Math.sin(a) * T.pspeed, dmg: T.dmg, life: T.range * 1.5 / T.pspeed, color: T.color });
+        const ang = Math.atan2(p.y - f.y, p.x - f.x) + (1 - T.acc / 100) * 0.5 * (rnd() * 2 - 1);
+        Sim.proj.push({ x: f.x, y: f.y, vx: Math.cos(ang) * T.pspeed, vy: Math.sin(ang) * T.pspeed, life: T.range * 1.5 / T.pspeed, type: T });
       }
     }
     if (T.move === 'rush' && d > T.range * 0.4) descend(f, Sim.dist, step);
@@ -2305,9 +2438,9 @@ function projStep(dt) {
   Sim.proj = Sim.proj.filter(b => {
     b.life -= dt; if (b.life <= 0) return false;
     const nx = b.x + b.vx * dt, ny = b.y + b.vy * dt;
-    if (blocksSight(cellAt(nx, ny))) { Sim.fx.push({ k: 'puff', x: nx, y: ny, t: Sim.t, color: b.color }); return false; }
+    if (blocksSight(cellAt(nx, ny))) { Sim.fx.push({ k: 'puff', x: nx, y: ny, t: Sim.t, color: b.type.color }); return false; }
     b.x = nx; b.y = ny;
-    if (Math.hypot(b.x - p.x, b.y - p.y) <= 0.5) { hurtPlayer(b.dmg); Sim.fx.push({ k: 'puff', x: b.x, y: b.y, t: Sim.t, color: b.color }); return false; }
+    if (Math.hypot(b.x - p.x, b.y - p.y) <= 0.5) { hurtPlayer(b.type.dmg, b.type); Sim.fx.push({ k: 'puff', x: b.x, y: b.y, t: Sim.t, color: b.type.color }); return false; }
     return true;
   });
 }
@@ -2327,17 +2460,17 @@ function simStep() {
   }
   projStep(dt);
   Sim.fx = Sim.fx.filter(e => Sim.t - e.t < 0.5);
-  const left = Sim.foes.filter(f => !f.dead).length;
-  const end = result => { Sim.over = { result, t: Sim.t, hp: Math.max(0, Sim.player.hp), left }; Sim.playing = false; };
-  if (Sim.player.hp <= 0) end('dead');
-  else if (!left) end('win');
+  const p = Sim.player, left = Sim.foes.filter(f => !f.dead).length;
+  const end = result => { Sim.over = { result, t: Sim.t, hp: Math.max(0, p.hp), left }; Sim.playing = false; };
+  if (p.hp <= 0) end('dead');
+  else if (Sim.obj ? Math.hypot(p.x - Sim.obj.x, p.y - Sim.obj.y) < 1.2 : !left) end(Sim.obj ? 'objective' : 'win');
   else if (Sim.t >= SIM.maxTime) end('time');
   else if (Sim.stuckT > 5) end('stuck');
 }
 function simLoop(now) {
-  if (!Sim.active) return;
+  if (!Sim.active) { Sim.loop = false; return; }
   const real = Math.min(0.1, (now - Sim.last) / 1000); Sim.last = now;
-  if (Sim.playing && !Sim.over) {
+  if ((Sim.mode === 'live' || Sim.mode === 'replay') && Sim.playing && !Sim.over) {
     Sim.acc += real * Sim.speed;
     let n = 0;
     while (Sim.acc >= SIM.dt && n < 80 && !Sim.over) { simStep(); Sim.acc -= SIM.dt; n++; }
@@ -2345,36 +2478,162 @@ function simLoop(now) {
   draw(); syncSimBar();
   requestAnimationFrame(simLoop);
 }
+
+/* Run 10×: play the level ten times as fast as possible, keeping each run's seed, trail and stats */
+const RESULT_LABEL = { win: 'Cleared', objective: 'Objective', dead: 'Died', time: 'Timed out', stuck: 'Stuck' };
+const runColor = k => `hsl(${(k * 47 + 200) % 360} 80% 52%)`;
+async function runBatch(n = 10) {
+  if (Sim.mode === 'batch' || !simPrepare()) return;
+  Sim.mode = 'batch'; Sim.playing = false;
+  $('#simres').hidden = true;
+  const W = Sim.world, N = W.grid.nx * W.grid.ny, B = { runs: [], heat: new Float32Array(N), done: 0, n, obj: false };
+  Batch = B;
+  const yieldNow = () => new Promise(r => setTimeout(r, 0));
+  for (let k = 0; k < n; k++) {
+    const seed = newSeed();
+    simReset(seed);
+    B.obj = !!Sim.obj;
+    let t0 = performance.now(), steps = 0;
+    while (!Sim.over) {
+      simStep();
+      if (++steps % 200 === 0 && performance.now() - t0 > 30) { await yieldNow(); if (!Sim.active || Batch !== B) return; t0 = performance.now(); }
+    }
+    for (let c = 0; c < N; c++) B.heat[c] += Sim.heat[c];
+    B.runs.push({ seed, ...Sim.over, total: Sim.foes.length, trail: Sim.trail.slice(), rooms: Sim.roomLog.slice(), dmgBy: { ...Sim.dmgBy } });
+    B.done = k + 1;
+    await yieldNow();
+    if (!Sim.active || Batch !== B) return;
+  }
+  Sim.mode = 'results'; Sim.view = Sim.view || { trails: true, heat: true };
+  showResults();
+}
+function showResults() {
+  const B = Batch; if (!B) return;
+  Sim.mode = 'results'; Sim.playing = false;
+  const runs = B.runs, good = runs.filter(r => r.result === 'win' || r.result === 'objective');
+  const avg = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+  const fails = ['dead', 'time', 'stuck'].map(k => [k, runs.filter(r => r.result === k).length]).filter(x => x[1]);
+  const rooms = Sim.world.rooms.map((rm, k) => {
+    const visits = runs.flatMap(r => r.rooms.filter(x => x.room === k)), cleared = visits.filter(x => x.t1 != null);
+    return visits.length ? { label: rm.label, n: cleared.length, of: runs.length, t: avg(cleared.map(x => x.t1 - x.t0)), dmg: avg(cleared.map(x => x.dmg)) } : null;
+  }).filter(Boolean);
+  const dmg = {}; runs.forEach(r => Object.entries(r.dmgBy).forEach(([k, v]) => { dmg[k] = (dmg[k] || 0) + v; }));
+  const total = Object.values(dmg).reduce((s, v) => s + v, 0);
+  const top = Object.entries(dmg).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const el = $('#simres');
+  el.innerHTML = `
+    <div class="res-head">
+      <div class="grow"><strong>${good.length} of ${runs.length} ${B.obj ? 'reached the objective' : 'cleared'}</strong>
+        <span>${good.length ? `avg ${clock(avg(good.map(r => r.t)))} · ${Math.round(avg(good.map(r => r.hp)))} HP left` : 'No run made it'}${fails.length ? ' · ' + fails.map(([k, v]) => `${v} ${RESULT_LABEL[k].toLowerCase()}`).join(', ') : ''}</span></div>
+      <button class="iconbtn" data-r="hide" aria-label="Hide results">${ic('chevron')}</button>
+    </div>
+    <div class="btnrow">
+      <button class="smallbtn" data-r="trails" aria-pressed="${Sim.view.trails}">Trails</button>
+      <button class="smallbtn" data-r="heat" aria-pressed="${Sim.view.heat}">Damage heatmap</button>
+      <button class="smallbtn" data-r="again">Run 10× again</button>
+    </div>
+    <div class="res-list">${runs.map((r, k) => `
+      <button class="res-row" data-run="${k}"><i style="background:${runColor(k)}"></i><b>Run ${k + 1}</b>
+        <span class="pill ${r.result === 'win' || r.result === 'objective' ? 'ok' : 'bad'}">${RESULT_LABEL[r.result]}</span>
+        <span class="mono">${clock(r.t)}</span><span class="mono">${Math.round(r.hp)} HP</span><span class="watch">Watch ▸</span></button>`).join('')}</div>
+    ${rooms.length ? `<h4>Rooms</h4><div class="res-rooms">${rooms.map(r => `<div><b>${r.label}</b><span>cleared ${r.n}/${r.of}${r.n ? ` · avg ${clock(r.t)} · ${Math.round(r.dmg)} damage taken` : ''}</span></div>`).join('')}</div>` : ''}
+    ${top.length ? `<h4>Damage taken from</h4><div class="res-rooms">${top.map(([k, v]) => `<div><b>${esc(k)}</b><span>${Math.round(v / total * 100)}% · ${Math.round(v / runs.length)} per run</span></div>`).join('')}</div>` : ''}`;
+  el.hidden = false;
+  el.querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => simLive(B.runs[+b.dataset.run].seed, +b.dataset.run)));
+  el.querySelectorAll('[data-r]').forEach(b => b.addEventListener('click', () => {
+    const r = b.dataset.r;
+    if (r === 'hide') el.hidden = true;
+    else if (r === 'again') runBatch();
+    else { Sim.view[r] = !Sim.view[r]; b.setAttribute('aria-pressed', String(Sim.view[r])); }
+  }));
+}
 function syncSimBar() {
-  const total = Sim.foes.length, down = Sim.foes.filter(f => f.dead).length, o = Sim.over;
-  const st = $('#simstate');
-  st.textContent = o ? { win: 'Level cleared', dead: 'Player down', time: 'Out of time', stuck: 'Player got stuck' }[o.result] : !Sim.playing ? 'Paused' : Sim.lockRoom >= 0 ? 'Room locked' : 'Running';
-  st.className = o ? (o.result === 'win' ? 'win' : 'lose') : '';
-  $('#simsub').textContent = `${clock(Sim.t)} · ${Math.max(0, Math.round(Sim.player.hp))} HP · ${down}/${total} down`;
-  $('#simplayicon').setAttribute('d', Sim.playing ? 'M8 5v14M16 5v14' : 'M7 4l13 8-13 8z');
-  $('#simplay').disabled = !!o;
-  $('#simplay').setAttribute('aria-label', Sim.playing ? 'Pause' : 'Play');
+  const st = $('#simstate'), sub = $('#simsub'), h = $('#hint'), batchBtn = $('#simbatch');
+  const busy = Sim.mode === 'batch', results = Sim.mode === 'results';
+  $('#simplay').disabled = busy || results || !!Sim.over;
+  $('#simspeed').disabled = busy || results;
+  $('#simrestart').disabled = busy;
+  batchBtn.disabled = busy;
+  const listMode = !(Sim.mode === 'live' || busy);
+  if (batchBtn.dataset.mode !== String(listMode)) { batchBtn.dataset.mode = String(listMode); batchBtn.innerHTML = listMode ? '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>' : '10×'; }
+  batchBtn.setAttribute('aria-label', Sim.mode === 'live' ? 'Run 10 times' : 'Show results');
   $('#simspeed').textContent = Sim.speed + '×';
-  const h = $('#hint');
-  let text = Sim.t < Sim.msgT ? Sim.msg : '';
-  if (o && o.result === 'stuck') text = `The player can't reach the last ${o.left} ${o.left === 1 ? 'enemy' : 'enemies'}. Check for rooms with no door, or doors that don't sit on a wall.`;
-  else if (o && o.result === 'dead') text = `The player went down at ${clock(o.t)} with ${o.left} ${o.left === 1 ? 'enemy' : 'enemies'} left.`;
-  else if (o && o.result === 'win') text = `Cleared in ${clock(o.t)} with ${Math.round(o.hp)} HP left.`;
+  let text = '';
+  if (busy) { st.textContent = 'Running 10 simulations…'; st.className = ''; sub.textContent = `${Batch.done} of ${Batch.n} done`; }
+  else if (results) {
+    const good = Batch.runs.filter(r => r.result === 'win' || r.result === 'objective').length;
+    st.textContent = `${good}/${Batch.runs.length} ${Batch.obj ? 'made it' : 'cleared'}`; st.className = good === Batch.runs.length ? 'win' : good ? '' : 'lose';
+    sub.textContent = 'Tap a run in the list to watch it';
+  } else {
+    const total = Sim.foes.length, down = Sim.foes.filter(f => f.dead).length, o = Sim.over;
+    const label = o ? { win: 'Level cleared', objective: 'Objective reached', dead: 'Player down', time: 'Out of time', stuck: 'Player got stuck' }[o.result]
+      : !Sim.playing ? 'Paused' : Sim.lockRoom >= 0 ? `${Sim.rooms[Sim.lockRoom].label} locked` : 'Running';
+    st.textContent = (Sim.mode === 'replay' ? `Run ${Sim.replay + 1} · ` : '') + label;
+    st.className = o ? (o.result === 'win' || o.result === 'objective' ? 'win' : 'lose') : '';
+    sub.textContent = `${clock(Sim.t)} · ${Math.max(0, Math.round(Sim.player.hp))} HP · ${down}/${total} down`;
+    $('#simplayicon').setAttribute('d', Sim.playing ? 'M8 5v14M16 5v14' : 'M7 4l13 8-13 8z');
+    $('#simplay').setAttribute('aria-label', Sim.playing ? 'Pause' : 'Play');
+    text = Sim.t < Sim.msgT ? Sim.msg : '';
+    if (o && o.result === 'stuck') text = `The player can't reach the last ${o.left} ${o.left === 1 ? 'enemy' : 'enemies'}. Check for rooms with no door, or doors that don't sit on a wall.`;
+    else if (o && o.result === 'dead') text = `The player went down at ${clock(o.t)} with ${o.left} ${o.left === 1 ? 'enemy' : 'enemies'} left.`;
+    else if (o && o.result === 'win') text = `Cleared in ${clock(o.t)} with ${Math.round(o.hp)} HP left.`;
+    else if (o && o.result === 'objective') text = `Reached ${Sim.obj.name} in ${clock(o.t)} with ${Math.round(o.hp)} HP left.`;
+  }
   if (h.textContent !== text) h.textContent = text;
   h.hidden = !text;
 }
+
+/* drawing */
 function hpBar(c, R, x, y, f) {
   const [sx, sy] = w2s(R, x, y), r = markerPx(R), w = 26, top = sy - r * 1.9 - 7;
   c.fillStyle = 'rgba(10,14,20,.55)'; c.fillRect(sx - w / 2 - 1, top - 1, w + 2, 6);
   c.fillStyle = f > 0.5 ? T.ok : f > 0.25 ? T.warn : T.danger; c.fillRect(sx - w / 2, top, w * clamp(f, 0, 1), 4);
 }
+function drawRoomLabels(c, R, counts) {
+  c.save(); c.font = `600 11px ${T.display}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  Sim.world.rooms.forEach((rm, k) => {
+    if (rm.cx == null) return;
+    const n = counts ? counts[k] : 0, text = n ? `${rm.label} · ${n} left` : rm.label, [x, y] = w2s(R, rm.cx, rm.cy), w = c.measureText(text).width + 12;
+    c.globalAlpha = 0.85; c.fillStyle = T.surface; c.beginPath(); c.roundRect ? c.roundRect(x - w / 2, y - 9, w, 18, 9) : c.rect(x - w / 2, y - 9, w, 18); c.fill();
+    c.globalAlpha = 1; c.fillStyle = Sim.lockRoom === k && Sim.mode !== 'results' ? T.danger : T.muted; c.fillText(text, x, y + 0.5);
+  });
+  c.restore();
+}
+function drawTrail(c, R, trail, color, alpha, dashed) {
+  if (trail.length < 2) return;
+  c.save(); c.strokeStyle = color; c.globalAlpha = alpha; c.lineWidth = 2; c.lineJoin = 'round'; if (dashed) c.setLineDash([4, 5]);
+  c.beginPath(); trail.forEach(([x, y], k) => { const [sx, sy] = w2s(R, x, y); k ? c.lineTo(sx, sy) : c.moveTo(sx, sy); }); c.stroke(); c.restore();
+}
 function drawSimLayer(c, R) {
-  const p = Sim.player;
-  if (Sim.trail.length > 1) {
-    c.save(); c.strokeStyle = PLAYER_COLOR; c.globalAlpha = 0.45; c.lineWidth = 2; c.setLineDash([4, 5]);
-    c.beginPath(); Sim.trail.forEach(([x, y], k) => { const [sx, sy] = w2s(R, x, y); k ? c.lineTo(sx, sy) : c.moveTo(sx, sy); });
-    const [px, py] = w2s(R, p.x, p.y); c.lineTo(px, py); c.stroke(); c.restore();
+  if (Sim.mode === 'results' || Sim.mode === 'batch') {
+    const B = Batch, g = Sim.grid;
+    if (B && Sim.mode === 'results' && Sim.view.heat) {
+      // damage heatmap, summed over every run, in 1 m blocks
+      const k = Math.max(1, Math.round(1 / g.cs)), bw = Math.ceil(g.nx / k), bh = Math.ceil(g.ny / k), sum = new Float32Array(bw * bh);
+      for (let c2 = 0; c2 < B.heat.length; c2++) if (B.heat[c2]) { const i = c2 % g.nx, j = (c2 - i) / g.nx; sum[Math.floor(j / k) * bw + Math.floor(i / k)] += B.heat[c2]; }
+      let max = 0; for (const v of sum) if (v > max) max = v;
+      if (max) {
+        c.save(); c.fillStyle = T.danger;
+        for (let q = 0; q < sum.length; q++) if (sum[q]) {
+          const i = q % bw, j = (q - i) / bw, [x, y] = w2s(R, g.x0 + i * k * g.cs, g.y0 + j * k * g.cs), s = k * g.cs * R.s;
+          c.globalAlpha = 0.15 + 0.6 * sum[q] / max; c.fillRect(x, y, s + 0.5, s + 0.5);
+        }
+        c.restore();
+      }
+    }
+    if (B && Sim.mode === 'results' && Sim.view.trails) B.runs.forEach((r, k) => drawTrail(c, R, r.trail, runColor(k), 0.55, false));
+    drawRoomLabels(c, R);
+    // starting positions, faded, so the overlay has the cast to read against
+    c.save(); c.globalAlpha = 0.55;
+    for (const it of map.items) if (it.floor === Sim.floor && it.kind === 'enemy') drawEnemy(c, R, it);
+    for (const it of map.items) if (it.floor === Sim.floor && it.kind === 'player') drawPlayer(c, R, it);
+    c.restore();
+    return;
   }
+  const p = Sim.player, counts = Sim.world.rooms.map((_, k) => Sim.foes.filter(f => !f.dead && Sim.roomOf(f.x, f.y) === k).length);
+  drawRoomLabels(c, R, counts);
+  drawTrail(c, R, [...Sim.trail, [p.x, p.y]], Sim.mode === 'replay' ? runColor(Sim.replay) : PLAYER_COLOR, 0.6, true);
+  if (Sim.obj) { const [x, y] = w2s(R, Sim.obj.x, Sim.obj.y); c.save(); c.strokeStyle = T.accent; c.lineWidth = 2; c.setLineDash([3, 3]); c.beginPath(); c.arc(x, y, markerPx(R) + 6 + Math.sin(Sim.t * 4) * 2, 0, Math.PI * 2); c.stroke(); c.restore(); }
   for (const e of Sim.fx) {
     const age = Sim.t - e.t;
     c.save();
@@ -2389,7 +2648,7 @@ function drawSimLayer(c, R) {
   }
   for (const b of Sim.proj) {
     const [x, y] = w2s(R, b.x, b.y);
-    c.beginPath(); c.arc(x, y, Math.max(3.5, 0.18 * R.s), 0, Math.PI * 2); c.fillStyle = b.color; c.fill(); c.lineWidth = 1.5; c.strokeStyle = T.ring; c.stroke();
+    c.beginPath(); c.arc(x, y, Math.max(3.5, 0.18 * R.s), 0, Math.PI * 2); c.fillStyle = b.type.color; c.fill(); c.lineWidth = 1.5; c.strokeStyle = T.ring; c.stroke();
   }
   for (const f of Sim.foes) {
     const it = { x: f.x, y: f.y, type: f.type.id };
@@ -2399,13 +2658,14 @@ function drawSimLayer(c, R) {
     hpBar(c, R, f.x, f.y, f.hp / f.type.hp);
   }
   drawPlayer(c, R, { x: p.x, y: p.y, rot: deg(p.face) + 90 });
-  hpBar(c, R, p.x, p.y, p.hp / SIM.player.hp);
+  hpBar(c, R, p.x, p.y, p.hp / Sim.P.hp);
 }
-$('#simfab').addEventListener('click', simStart);
+$('#simfab').addEventListener('click', simOpen);
 $('#simclose').addEventListener('click', simStop);
-$('#simrestart').addEventListener('click', simStart);
+$('#simrestart').addEventListener('click', () => { if (Sim.mode === 'replay') simLive(Sim.seed, Sim.replay); else if (simPrepare()) simLive(newSeed(), null); });
 $('#simplay').addEventListener('click', () => { if (!Sim.over) { Sim.playing = !Sim.playing; Sim.last = performance.now(); } });
 $('#simspeed').addEventListener('click', () => { Sim.speed = Sim.speed === 1 ? 2 : Sim.speed === 2 ? 4 : 1; });
+$('#simbatch').addEventListener('click', () => { if (Sim.mode === 'live') runBatch(); else if (Batch && Batch.done === Batch.n) showResults(); });
 
 /* ---------- shape builder: the editor on a scratch map whose shapes become a master ---------- */
 async function openBuilder(masterId, back) {
@@ -2691,6 +2951,14 @@ function buildSettings(body) {
       <div class="setrow"><span>Fill opacity</span><div class="ctrl"><input type="range" id="s-solidAlpha" min="0.05" max="1" step="0.05" value="${settings.solidAlpha}"><output data-o="solidAlpha"></output></div></div>
     </section>
     <section>
+      <h3>Simulated player</h3>
+      <div class="setrow"><span>Play style</span><div class="ctrl"><span class="muted" style="font-size:12px">Tactical</span><input type="range" id="s-aggr" min="0" max="1" step="0.1" value="${settings.aggr ?? 1}"><span class="muted" style="font-size:12px">Doom</span></div></div>
+      <p>Doom keeps moving, strafes while it shoots and pushes in close. Tactical hangs back, moves less and takes longer shots.</p>
+      <div class="stats">${[['hp', 'Health', 1], ['speed', 'Speed (m/s)', 0.5], ['dmg', 'Damage per shot', 1], ['rate', 'Shots per second', 0.5], ['acc', 'Accuracy (%)', 1], ['range', 'Range (m)', 1]]
+        .map(([k, l, st]) => `<label>${l}<input type="number" inputmode="decimal" step="${st}" data-ps="${k}" value="${playerStats()[k]}"></label>`).join('')}</div>
+      <div class="btnrow"><button class="btn" id="s-pdef">Reset player to defaults</button></div>
+    </section>
+    <section>
       <h3>Floors</h3>
       <label class="toggle"><input type="checkbox" id="s-below"${settings.below ? ' checked' : ''}>Show the floor below, faded</label>
     </section>
@@ -2712,6 +2980,14 @@ function buildSettings(body) {
     el.addEventListener('change', saveSettings);
   }
   body.querySelector('#s-below').addEventListener('change', e => { settings.below = e.target.checked; saveSettings(); requestDraw(); });
+  body.querySelector('#s-aggr').addEventListener('change', e => { settings.aggr = +e.target.value; saveSettings(); });
+  const LIM = { hp: [1, 9999], speed: [0.5, 20], dmg: [1, 999], rate: [0.1, 20], acc: [0, 100], range: [1, 200] };
+  body.querySelectorAll('[data-ps]').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.ps, v = parseFloat(el.value), P = playerStats();
+    P[k] = Number.isFinite(v) ? clamp(v, ...LIM[k]) : DEFAULT_PLAYER[k];
+    settings.player = P; saveSettings(); el.value = P[k];
+  }));
+  body.querySelector('#s-pdef').addEventListener('click', () => { settings.player = { ...DEFAULT_PLAYER }; settings.aggr = 1; saveSettings(); refreshSheet(); toast('Simulated player reset to the defaults.'); });
 }
 
 /* Maps */

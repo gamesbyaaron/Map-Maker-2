@@ -4,7 +4,7 @@ A top-down FPS map designer for phones, used to block out levels before rebuildi
 
 The whole app is one file: `map-designer.html`. It's published as a private Claude artifact and runs in the phone's browser.
 
-## What it does (v5)
+## What it does (v6)
 
 - Main menu: New Blank, Maps, Shapes & Symbols, Bestiary, Settings, and Continue. Each opens a full page.
 - Shapes & Symbols: a Shape Builder for custom shapes made from circles and polygons. Every placed copy is an instance of the saved master, so editing the master updates them all; Break apart turns one copy back into plain shapes.
@@ -13,6 +13,8 @@ The whole app is one file: `map-designer.html`. It's published as a private Clau
 - Doors: snap onto room walls and cut a gap; each door either locks until its room is cleared or stays open.
 - Bestiary: enemy types shared by every map, with an attack type (melee, hitscan, projectile), movement style (rush, hold, keep distance), health, speed, damage, attack rate, range, accuracy and notes.
 - Simulate: the current floor becomes a walking grid; the player explores and fights, enemies wake on sight or sound, and entering a room with enemies locks its doors until it is clear. Play, pause, 1×/2×/4×, restart.
+- The simulated player plays Doom-style by default (keeps moving, strafes, pushes in close); a Settings slider runs to Tactical, and its health, speed, damage, fire rate, accuracy and range are editable. An Objective or Exit symbol becomes the player's goal.
+- Run 10×: ten seeded runs in about a second, with a results list, exact replays of any run, all trails overlaid, a damage heatmap, per-room clear stats and damage by enemy type.
 - Grid where 1 square = 1 m (100 Unreal units). Pinch to zoom, drag empty space to pan.
 - Shapes are Rooms (floor + walls) or Solids (crates, pillars). Overlapping rooms join: the walls between them dissolve, or a setting keeps a dividing wall.
 - Circles, and polygons with a sides slider (3–12: triangle, square, pentagon … dodecagon).
