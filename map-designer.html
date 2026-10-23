@@ -724,7 +724,7 @@ function normalize(m) {
     if (i.locked) o.locked = true;
     if (i.grp) o.grp = String(i.grp);
     if (i.kind === 'symbol') { o.sym = String(i.sym || ''); return o; }
-    if (i.kind === 'door') return Object.assign(o, { w: clamp(num(i.w, 1.2), 0.5, 8), h: 0.6, rot: num(i.rot, 0), lockMode: i.lockMode === 'open' ? 'open' : 'clear' });
+    if (i.kind === 'door') return Object.assign(o, { w: clamp(num(i.w, 1.2), 0.5, 8), h: 0.6, rot: num(i.rot, 0), lockMode: i.lockMode === 'open' ? 'open' : 'clear', ...(i.lockFor ? { lockFor: String(i.lockFor) } : {}) });
     if (i.kind === 'custom') {
       return Object.assign(o, { ref: String(i.ref || ''), rot: num(i.rot, 0), w: Math.max(MIN_SIZE, num(i.w, 1)), h: Math.max(MIN_SIZE, num(i.h, 1)),
         sx: Math.max(0.01, num(i.sx, 1)), sy: Math.max(0.01, num(i.sy, 1)), lock: i.lock !== false, ...(i.sizeLock ? { sizeLock: true } : {}) });
@@ -736,6 +736,7 @@ function normalize(m) {
       sides: clamp(Math.round(num(i.sides, 4)), 3, MAX_SIDES), color: isHex(i.color) ? i.color : SHAPE_COLORS[0].hex, lock: !!i.lock,
       style: i.style === 'room' ? 'room' : 'solid',          // maps from v1 had only solid shapes
       walls: i.walls === 'divide' ? 'divide' : 'merge',
+      ...(i.arena === 'on' || i.arena === 'off' ? { arena: i.arena } : {}),
       ...(i.sizeLock ? { sizeLock: true } : {}),
     });
   });
@@ -1020,12 +1021,12 @@ function groupRooms(entries) {
       // each room keeps what later rooms don't cover; the later room owns the overlap
       members.forEach((m, k) => {
         const later = mp.slice(k + 1);
-        g.fills.push({ color: m.color, mp: later.length ? PC.difference(mp[k], ...later) : [mp[k]] });
+        g.fills.push({ id: m.id, color: m.color, mp: later.length ? PC.difference(mp[k], ...later) : [mp[k]] });
       });
       // one room: a single outline around the group; separate rooms: every region outlined, so one dividing wall
       g.walls = members.length === 1 ? [mp[0]] : mode === 'merge' ? PC.union(...mp) : g.fills.flatMap(f => f.mp);
     } catch {
-      g.fills = members.map((m, k) => ({ color: m.color, mp: [mp[k]] })); g.walls = mp;
+      g.fills = members.map((m, k) => ({ id: m.id, color: m.color, mp: [mp[k]] })); g.walls = mp;
     }
     groups.push(g);
   }
@@ -1078,6 +1079,49 @@ function snapDoor(it, x, y) {
   t = len > it.w ? clamp(t, it.w / 2, len - it.w / 2) : len / 2;
   it.x = round2(ax + dx / len * t); it.y = round2(ay + dy / len * t); it.rot = round2(norm360(deg(Math.atan2(dy, dx))));
 }
+/* rooms and arenas, shared by the editor and the simulation */
+function floorGroups(fl) {
+  const groups = [...roomGroups(fl)];
+  for (const it of map.items) if (it.floor === fl && it.kind === 'custom') { const m = masterOf(it.ref); if (m) groups.push(...instanceRoomGroups(it, m)); }
+  return groups;
+}
+// one-room groups are a single room; separate-rooms groups give one room per region; labels R1, R2… follow this order
+function roomsFromGroups(groups) {
+  const rooms = [];
+  for (const g of groups) {
+    if (g.size === 1) rooms.push({ mp: g.fills[0].mp, ids: [g.fills[0].id] });
+    else if (g.mode === 'merge') rooms.push({ mp: g.walls, ids: g.fills.map(f => f.id) });
+    else for (const f of g.fills) rooms.push({ mp: f.mp, ids: [f.id] });
+  }
+  rooms.forEach((r, k) => {
+    r.label = 'R' + (k + 1);
+    const ring = r.mp[0] && r.mp[0][0]; if (!ring) return;
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < ring.length; i++) { const [x0, y0] = ring[i], [x1, y1] = ring[(i + 1) % ring.length], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+    if (Math.abs(a) > 1e-6) { r.cx = cx / (3 * a); r.cy = cy / (3 * a); } else { const b = ringBox(ring); r.cx = (b.x0 + b.x1) / 2; r.cy = (b.y0 + b.y1) / 2; }
+  });
+  return rooms;
+}
+// a room's Arena setting lives on its shapes: 'on', 'off', or auto
+function roomSetting(r) { for (const id of r.ids) { const it = typeof id === 'string' && byId(id); if (it && it.arena) return it.arena; } return 'auto'; }
+// the rooms a door opens onto, sampled a little way out on each side
+function doorSides(d, roomOf) {
+  const a = rad(d.rot), ox = -Math.sin(a) * 0.9, oy = Math.cos(a) * 0.9;
+  return [...new Set([roomOf(d.x + ox, d.y + oy), roomOf(d.x - ox, d.y - oy)].filter(r => r >= 0))];
+}
+// which arenas a door locks for: a room picked by hand, nothing, or (auto) every arena it opens onto
+function doorTargets(d, sides, rooms, isArena) {
+  if (d.lockMode === 'open' || d.lockFor === 'none') return [];
+  if (d.lockFor) { const k = rooms.findIndex(r => r.ids.includes(d.lockFor)); if (k >= 0) return isArena(k) ? [k] : []; }
+  return sides.filter(isArena);
+}
+// the editor's view of the same rules, for labels, link lines and the door and room panels
+function roomInfo(fl) {
+  const rooms = roomsFromGroups(floorGroups(fl)), roomOf = (x, y) => rooms.findIndex(r => inMulti(x, y, r.mp));
+  const enemies = map.items.filter(i => i.floor === fl && i.kind === 'enemy' && !i.roam);
+  const arena = rooms.map(r => { const set = roomSetting(r); return set === 'on' || (set !== 'off' && enemies.some(e => inMulti(e.x, e.y, r.mp))); });
+  return { rooms, roomOf, arena, doors: new Map(map.items.filter(i => i.floor === fl && i.kind === 'door').map(d => { const sides = doorSides(d, roomOf); return [d.id, { sides, targets: doorTargets(d, sides, rooms, k => arena[k]) }]; })) };
+}
 function doorRect(d, depth) {
   const a = rad(d.rot), ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux, hw = d.w / 2;
   return [[d.x - ux * hw - nx * depth, d.y - uy * hw - ny * depth], [d.x + ux * hw - nx * depth, d.y + uy * hw - ny * depth],
@@ -1108,7 +1152,7 @@ function drawScene(c, R, withSelection) {
   if (settings.below && fi > 0) { c.save(); c.globalAlpha = 0.2; drawFloor(c, R, map.floors[fi - 1].id); c.restore(); }
   drawFloor(c, R, map.activeFloor);
   if (Sim.active && withSelection) { drawSimLayer(c, R); return minor; }
-  if (withSelection) drawSelection(c, R);
+  if (withSelection) { drawRoomHints(c, R); drawSelection(c, R); }
   return minor;
 }
 function drawGrid(c, R) {
@@ -1130,7 +1174,7 @@ function drawFloor(c, R, floorId) {
   for (const it of list) if (!isMarker(it) && !isRoom(it) && it.kind !== 'door') (it.kind === 'custom' ? drawCustom : drawShape)(c, R, it);
   const doorsHere = list.filter(i => i.kind === 'door'), segs = doorsHere.length && !sim ? wallSegs(floorId) : null;
   for (const it of doorsHere) {
-    drawDoor(c, R, it, sim ? (Sim.doors.find(d => d.id === it.id)?.locked ? 'locked' : 'open') : undefined);
+    drawDoor(c, R, it, sim ? (Sim.doors.find(d => d.id === it.id)?.state || 'open') : undefined);
     if (segs && !segs.some(([a, b]) => distSeg(it.x, it.y, a, b) < 0.25)) drawDoorWarning(c, R, it);
   }
   for (const it of list) if (it.kind === 'symbol') drawSymbol(c, R, it);
@@ -1213,13 +1257,33 @@ function drawCustom(c, R, it) {
 // state is 'locked' or 'open' while simulating; otherwise the door shows its setting
 function drawDoor(c, R, it, state) {
   const [cx, cy] = w2s(R, it.x, it.y), hw = it.w / 2 * R.s, t = Math.max(4, settings.roomLine * R.s * 0.8 + 3);
-  const color = state === 'locked' ? T.danger : state === 'open' ? T.ok : it.lockMode === 'open' ? T.muted : T.warn;
+  const color = state === 'locked' ? T.danger : state === 'open' ? T.ok : state === 'closed' ? T.muted : it.lockMode === 'open' ? T.muted : T.warn;
   c.save(); c.translate(cx, cy); c.rotate(rad(it.rot));
   c.strokeStyle = T.wall; c.lineWidth = 2;
   c.beginPath(); c.moveTo(-hw, -t); c.lineTo(-hw, t); c.moveTo(hw, -t); c.lineTo(hw, t); c.stroke();
   c.strokeStyle = color; c.lineWidth = Math.max(2.5, t * 0.5); c.lineCap = 'round';
   if (state === 'open' || (!state && it.lockMode === 'open')) c.setLineDash([4, 4]);
   c.beginPath(); c.moveTo(-hw + 2, 0); c.lineTo(hw - 2, 0); c.stroke();
+  c.restore();
+}
+function drawRoomHints(c, R) {
+  const it = selected();
+  if (!it || builder || !(it.kind === 'door' || isRoom(it))) return;
+  const info = roomInfo(it.floor);
+  c.save(); c.font = `600 11px ${T.display}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (it.kind === 'door') {
+    for (const k of info.doors.get(it.id)?.targets || []) {
+      const r = info.rooms[k]; if (r.cx == null) continue;
+      const [x0, y0] = w2s(R, it.x, it.y), [x1, y1] = w2s(R, r.cx, r.cy);
+      c.strokeStyle = T.accent; c.lineWidth = 2; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); c.setLineDash([]);
+    }
+  }
+  info.rooms.forEach((r, k) => {
+    if (r.cx == null) return;
+    const text = r.label + (info.arena[k] ? ' · arena' : ''), [x, y] = w2s(R, r.cx, r.cy), w = c.measureText(text).width + 12;
+    c.globalAlpha = 0.9; c.fillStyle = info.arena[k] ? T.accent : T.surface; c.beginPath(); c.roundRect ? c.roundRect(x - w / 2, y - 9, w, 18, 9) : c.rect(x - w / 2, y - 9, w, 18); c.fill();
+    c.globalAlpha = 1; c.fillStyle = info.arena[k] ? textOn(T.accent.startsWith('#') ? T.accent : '#0d8a7c') : T.muted; c.fillText(text, x, y + 0.5);
+  });
   c.restore();
 }
 function drawDoorWarning(c, R, it) {
@@ -1780,7 +1844,7 @@ function renderBar() {
     syncBar(); return;
   }
   const it = items[0], g = groupOf(it);
-  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock, it.kind === 'door' && doorOffWall(it),
+  const key = [it.id, it.kind, it.style, barMore, !!(g && g.size > 1), map.locked, !!it.locked, !!it.sizeLock, it.kind === 'door' && doorOffWall(it), it.lockFor, it.lockMode, it.arena, it.walls,
     it.kind === 'enemy' ? Bestiary.data.types.map(t => t.id + t.name + t.color).join() : it.kind === 'symbol' ? Library.data.symbols.map(t => t.id + t.name + t.color).join() : ''].join('|');
   if (key !== barKey) { bar.innerHTML = barHTML(it, g); bindBar(it); barKey = key; }
   syncBar();
@@ -1917,6 +1981,16 @@ function barHTML(it, g) {
     more = `
     <div class="prow"><span class="lbl">Width</span><div class="ctrl"><div class="stepper"><span>W</span><button data-dstep="-1" aria-label="Narrower">−</button><input id="p-dw" type="number" inputmode="decimal" step="0.1" aria-label="Door width in metres"><button data-dstep="1" aria-label="Wider">+</button></div></div></div>
     <div class="prow"><span class="lbl">Locking</span><div class="ctrl"><div class="seg"><button data-dlock="clear">Locks until cleared</button><button data-dlock="open">Always open</button></div></div></div>
+    ${it.lockMode === 'open' ? '' : (() => {
+      const info = roomInfo(it.floor), d = info.doors.get(it.id) || { sides: [], targets: [] };
+      const auto = d.sides.filter(k => info.arena[k]), autoLabel = auto.length ? auto.map(k => info.rooms[k].label).join(' + ') : 'no arena';
+      const cur = it.lockFor || 'auto';
+      return `<div class="prow"><span class="lbl">Locks for</span><div class="ctrl"><div class="seg" style="flex-wrap:wrap">
+        <button data-lockfor="auto" aria-pressed="${cur === 'auto'}">Auto (${autoLabel})</button>
+        ${d.sides.map(k => `<button data-lockfor="${esc(info.rooms[k].ids[0])}" aria-pressed="${info.rooms[k].ids.includes(cur)}">${info.rooms[k].label}${info.arena[k] ? '' : ' (not an arena)'}</button>`).join('')}
+        <button data-lockfor="none" aria-pressed="${cur === 'none'}">Nothing</button></div>
+        <span class="note">It stays closed until the player walks up, then locks behind them while ${d.targets.length ? d.targets.map(k => info.rooms[k].label).join(' or ') : 'nothing'} still has enemies.</span></div></div>`;
+    })()}
     <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
     ${pos}
     ${doorOffWall(it) ? `<div class="prow"><span class="lbl" style="color:var(--warn)">Not on a wall</span><div class="ctrl"><span class="note">This door doesn't cut a wall, so it won't block or lock anything.${mergedGroupAt(it) ? ' It sits inside rooms joined as One room, which have no walls between them.' : ''}</span>
@@ -1928,6 +2002,12 @@ function barHTML(it, g) {
     const room = it.style === 'room';
     more = `
     <div class="prow"><span class="lbl">Style</span><div class="ctrl"><div class="seg"><button data-style="room">Room</button><button data-style="solid">Solid</button></div></div></div>
+    ${room && !builder ? (() => {
+      const info = roomInfo(it.floor), k = info.rooms.findIndex(rm => rm.ids.includes(it.id)), cur = it.arena || 'auto';
+      return `<div class="prow"><span class="lbl">Arena</span><div class="ctrl"><div class="seg">
+        <button data-arena="auto" aria-pressed="${cur === 'auto'}">Auto</button><button data-arena="on" aria-pressed="${cur === 'on'}">Always</button><button data-arena="off" aria-pressed="${cur === 'off'}">Never locks</button></div>
+        <span class="note">${k >= 0 ? `${info.rooms[k].label} ${info.arena[k] ? 'is an arena: the player gets locked in until its enemies are dead.' : 'isn’t an arena, so it never locks.'}` : ''}${cur === 'auto' ? ' Auto makes a room an arena when enemies start in it.' : ''}</span></div></div>`;
+    })() : ''}
     ${room ? `<div class="prow"><span class="lbl">Walls</span><div class="ctrl">${g && g.size > 1
       ? '<div class="seg"><button data-walls="merge">One room</button><button data-walls="divide">Separate rooms</button></div>'
       : '<span class="note">Drag this room into another room to join them.</span>'}</div></div>` : ''}
@@ -1982,6 +2062,11 @@ function bindBar(it) {
   on('[data-roam]', (x, b) => mutate(() => { if (b.dataset.roam === 'roam') x.roam = true; else delete x.roam; }));
   on('[data-dstep]', (x, b) => mutate(() => { x.w = round2(clamp(x.w + +b.dataset.dstep * 0.1, 0.5, 8)); }));
   on('[data-dlock]', (x, b) => mutate(() => { x.lockMode = b.dataset.dlock; }));
+  on('[data-lockfor]', (x, b) => mutate(() => { if (b.dataset.lockfor === 'auto') delete x.lockFor; else x.lockFor = b.dataset.lockfor; }));
+  on('[data-arena]', (x, b) => {
+    const info = roomInfo(x.floor), r = info.rooms.find(rm => rm.ids.includes(x.id)), v = b.dataset.arena;
+    mutate(() => (r ? r.ids : [x.id]).forEach(id => { const s2 = byId(id); if (s2) { if (v === 'auto') delete s2.arena; else s2.arena = v; } }));
+  });
   on('[data-sides]', (x, b) => {
     const v = clamp(x.sides + +b.dataset.sides, 3, MAX_SIDES);
     if (v !== x.sides) { map.lastSides = v; mutate(() => { x.sides = v; }); }
@@ -2125,18 +2210,9 @@ function buildSimWorld(fl, items) {
     const a = ring[k], b = ring[(k + 1) % ring.length]; if (a[0] !== b[0] || a[1] !== b[1]) segs.push([a, b]);
   }
   // a door that isn't on a wall cuts nothing, so it never locks
-  const doors = items.filter(i => i.kind === 'door').map(d => ({ id: d.id, x: d.x, y: d.y, w: d.w, rot: d.rot, lockMode: d.lockMode, locked: false, rooms: [],
+  const doors = items.filter(i => i.kind === 'door').map(d => ({ id: d.id, x: d.x, y: d.y, w: d.w, rot: d.rot, lockMode: d.lockMode, lockFor: d.lockFor, state: 'open', rooms: [], targets: [],
     onWall: segs.some(([a, b]) => distSeg(d.x, d.y, a, b) < 0.25) }));
-  // one-room groups are a single room; separate-rooms groups give one room per region
-  const rooms = [];
-  for (const g of groups) { if (g.size === 1) rooms.push({ mp: g.fills[0].mp }); else if (g.mode === 'merge') rooms.push({ mp: g.walls }); else for (const f of g.fills) rooms.push({ mp: f.mp }); }
-  rooms.forEach((r, k) => {
-    r.label = 'R' + (k + 1);
-    const ring = r.mp[0] && r.mp[0][0]; if (!ring) return;
-    let a = 0, cx = 0, cy = 0;
-    for (let i = 0; i < ring.length; i++) { const [x0, y0] = ring[i], [x1, y1] = ring[(i + 1) % ring.length], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
-    if (Math.abs(a) > 1e-6) { r.cx = cx / (3 * a); r.cy = cy / (3 * a); } else { const b = ringBox(ring); r.cx = (b.x0 + b.x1) / 2; r.cy = (b.y0 + b.y1) / 2; }
-  });
+  const rooms = roomsFromGroups(groups);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
   segs.forEach(([a, b]) => { grow(...a); grow(...b); }); solids.forEach(r => r.forEach(p => grow(...p))); items.forEach(i => grow(i.x, i.y));
@@ -2173,10 +2249,7 @@ function buildSimWorld(fl, items) {
     }
   }
   const roomOf = (x, y) => rooms.findIndex(r => inMulti(x, y, r.mp));
-  for (const d of doors) {
-    const a = rad(d.rot), ox = -Math.sin(a) * 0.9, oy = Math.cos(a) * 0.9;
-    d.rooms = [...new Set([roomOf(d.x + ox, d.y + oy), roomOf(d.x - ox, d.y - oy)].filter(r => r >= 0))];
-  }
+  for (const d of doors) d.rooms = doorSides(d, roomOf);
   // which room each cell belongs to, so enemies can be kept inside their own room cheaply
   const cellRoom = new Int16Array(N).fill(-1);
   rooms.forEach((r, k) => {
@@ -2191,9 +2264,10 @@ function buildSimWorld(fl, items) {
 }
 const cellAt = (x, y) => { const g = Sim.grid, i = Math.floor((x - g.x0) / g.cs), j = Math.floor((y - g.y0) / g.cs); return i < 0 || j < 0 || i >= g.nx || j >= g.ny ? -1 : j * g.nx + i; };
 const cellXY = c => { const g = Sim.grid; return [g.x0 + (c % g.nx + 0.5) * g.cs, g.y0 + (Math.floor(c / g.nx) + 0.5) * g.cs]; };
-const doorShut = c => Sim.grid.doorAt[c] >= 0 && Sim.doors[Sim.grid.doorAt[c]].locked;
-const canWalk = c => c >= 0 && Sim.grid.walk[c] === 1 && !doorShut(c);
-const blocksSight = c => c < 0 || Sim.grid.opaque[c] === 1 || doorShut(c);
+const doorState = c => Sim.grid.doorAt[c] >= 0 ? Sim.doors[Sim.grid.doorAt[c]].state : 'open';
+const canWalk = c => c >= 0 && Sim.grid.walk[c] === 1 && doorState(c) !== 'locked';    // the player opens closed doors as it reaches them
+const foeWalk = c => c >= 0 && Sim.grid.walk[c] === 1 && doorState(c) === 'open';       // enemies can't
+const blocksSight = c => c < 0 || Sim.grid.opaque[c] === 1 || doorState(c) !== 'open';
 function los(ax, ay, bx, by) {
   const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 0.2), c0 = cellAt(ax, ay), c1 = cellAt(bx, by);
   for (let k = 1; k < n; k++) { const t = k / n, c = cellAt(ax + (bx - ax) * t, ay + (by - ay) * t); if (c !== c0 && c !== c1 && blocksSight(c)) return false; }
@@ -2227,15 +2301,15 @@ function tryMove(a, dx, dy, step) {
   return false;
 }
 // step to the neighbouring cell that lowers (dir -1) or raises (dir +1) a distance field
-function descend(a, field, step, dir = -1) {
+function descend(a, field, step, dir = -1, walkable = canWalk) {
   const g = Sim.grid, cur = cellAt(a.x, a.y); if (cur < 0) return false;
   const cv = field[cur], i = cur % g.nx, j = (cur - i) / g.nx;
   let best = -1, bv = cv < 0 ? (dir < 0 ? Infinity : -Infinity) : cv;
   for (const [di, dj] of NB8) {
     const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.ny) continue;
     const n = jj * g.nx + ii, v = field[n];
-    if (v < 0 || !canWalk(n)) continue;
-    if (di && dj && (!canWalk(j * g.nx + ii) || !canWalk(jj * g.nx + i))) continue;
+    if (v < 0 || !walkable(n)) continue;
+    if (di && dj && (!walkable(j * g.nx + ii) || !walkable(jj * g.nx + i))) continue;
     if (dir < 0 ? v < bv : v > bv) { bv = v; best = n; }
   }
   if (best < 0) { if (cv === 0) { const [tx, ty] = cellXY(cur); moveToward(a, tx, ty, step); } return false; }
@@ -2259,7 +2333,6 @@ function simPrepare() {
 function simReset(seed) {
   const W = Sim.world, items = map.items.filter(i => i.floor === W.floor), P = playerStats(), rnd = mulberry32(seed);
   const pl = items.find(i => i.kind === 'player'), obj = items.find(i => i.kind === 'symbol' && isObjective(symbolOf(i.sym)));
-  W.doors.forEach(d => { d.locked = false; });
   W.seen.fill(0);
   Object.assign(Sim, { grid: W.grid, doors: W.doors, rooms: W.rooms, roomOf: W.roomOf, cellRoom: W.cellRoom, seen: W.seen, dist: W.dist, q: W.q, gfield: W.gfield, gq: W.gq, floor: W.floor });
   Object.assign(Sim, {
@@ -2273,6 +2346,11 @@ function simReset(seed) {
       return { id: f.id, type: t, x: f.x, y: f.y, home, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false };
     }),
   });
+  // arenas: rooms set to always lock, or (auto) rooms that enemies start in; corridors and empty rooms never lock
+  Sim.arena = W.rooms.map((r, k) => { const set = roomSetting(r); return set === 'on' || (set !== 'off' && Sim.foes.some(f => f.home === k)); });
+  for (const d of W.doors) { d.targets = d.onWall ? doorTargets(d, d.rooms, W.rooms, k => Sim.arena[k]) : []; d.state = d.targets.length ? 'closed' : 'open'; }
+  // arena enemies sleep until the player is locked in with them
+  for (const f of Sim.foes) f.asleep = f.home >= 0 && Sim.arena[f.home];
   simTick();
 }
 const newSeed = () => (Math.random() * 4294967296) >>> 0;
@@ -2302,28 +2380,45 @@ function simStop() {
   renderAll();
 }
 const simMsg = (text, secs = 3) => { Sim.msg = text; Sim.msgT = Sim.t + secs; };
-// a door can't shut on someone standing in its doorway; it shuts once the doorway is clear
-const doorBusy = k => [Sim.player, ...Sim.foes.filter(f => !f.dead)].some(a => { const c = cellAt(a.x, a.y); return c >= 0 && Sim.grid.doorAt[c] === k; });
-function setRoomDoors(r, locked) {
-  let n = 0;
-  Sim.doors.forEach((d, k) => { if (d.lockMode === 'clear' && d.onWall && d.rooms.includes(r)) { d.locked = locked && !doorBusy(k); n++; } });
-  return n;
+// slam an arena's doors; anyone standing in a doorway is pushed back into their own room
+function lockArena(r) {
+  const g = Sim.grid;
+  Sim.doors.forEach((d, k) => {
+    if (!d.targets.includes(r)) return;
+    d.state = 'locked';
+    for (const f of Sim.foes) {
+      const c = cellAt(f.x, f.y); if (f.dead || c < 0 || g.doorAt[c] !== k) continue;
+      const i0 = c % g.nx, j0 = (c - i0) / g.nx; let best = -1, bd = Infinity;
+      for (let dj = -5; dj <= 5; dj++) for (let di = -5; di <= 5; di++) {
+        const ii = i0 + di, jj = j0 + dj; if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.ny) continue;
+        const n = jj * g.nx + ii;
+        if (g.doorAt[n] >= 0 || !g.walk[n] || (f.home >= 0 && Sim.cellRoom[n] !== f.home)) continue;
+        if (di * di + dj * dj < bd) { bd = di * di + dj * dj; best = n; }
+      }
+      if (best >= 0) [f.x, f.y] = cellXY(best);
+    }
+  });
 }
+const openArena = r => Sim.doors.forEach(d => { if (d.targets.includes(r) && d.state === 'locked') d.state = 'open'; });
 // every replan: room locks, fresh distance fields, and what the player can see
 function simTick() {
   const p = Sim.player, alive = Sim.foes.filter(f => !f.dead);
   const pc = cellAt(p.x, p.y), inDoor = pc >= 0 && Sim.grid.doorAt[pc] >= 0, pr = Sim.roomOf(p.x, p.y);
   const inRoom = r => alive.filter(f => f.home === r);
+  // closed doors open as the player walks up to them
+  for (const d of Sim.doors) if (d.state === 'closed' && Math.hypot(d.x - p.x, d.y - p.y) < 1.8) d.state = 'open';
   if (Sim.lockRoom >= 0) {
     if (!inRoom(Sim.lockRoom).length) {
-      setRoomDoors(Sim.lockRoom, false);
+      openArena(Sim.lockRoom);
       const log = Sim.roomLog[Sim.roomLog.length - 1]; log.t1 = Sim.t; log.dmg = Sim.dmgTaken - log.dmg0;
       simMsg(`${Sim.rooms[Sim.lockRoom].label} cleared. Doors open.`); Sim.lockRoom = -1;
-    } else setRoomDoors(Sim.lockRoom, true);
-  } else if (pr >= 0 && !inDoor) {
-    const here = inRoom(pr);
-    if (here.length && setRoomDoors(pr, true)) {
-      Sim.lockRoom = pr; here.forEach(f => { f.alert = true; });
+    }
+  } else if (pr >= 0 && Sim.arena[pr] && !inDoor) {
+    // lock in once the player is fully inside, past every doorway of the arena
+    const here = inRoom(pr), past = Sim.doors.every(d => !d.targets.includes(pr) || Math.hypot(d.x - p.x, d.y - p.y) > 1.5);
+    if (here.length && past) {
+      lockArena(pr);
+      Sim.lockRoom = pr; here.forEach(f => { f.alert = true; f.asleep = false; });
       Sim.roomLog.push({ room: pr, t0: Sim.t, dmg0: Sim.dmgTaken });
       simMsg(`${Sim.rooms[pr].label} locked: clear ${here.length} ${here.length === 1 ? 'enemy' : 'enemies'}.`, 4);
     }
@@ -2349,14 +2444,16 @@ function hurtPlayer(dmg, type) {
   if (c >= 0) Sim.heat[c] += dmg;
   Sim.dmgBy[type.name] = (Sim.dmgBy[type.name] || 0) + dmg;
 }
-function hurtFoe(f, dmg) { f.hp -= dmg; f.alert = true; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; Sim.known.delete(f); } }
+function hurtFoe(f, dmg) { f.hp -= dmg; f.alert = true; f.asleep = false; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; Sim.known.delete(f); } }
 function shotFx(x1, y1, x2, y2, hit, color) { const m = hit ? 0 : 1.6; Sim.fx.push({ k: 'shot', x1, y1, x2: x2 + (Sim.rand() - 0.5) * m, y2: y2 + (Sim.rand() - 0.5) * m, t: Sim.t, color }); }
 function playerAct(dt) {
   const p = Sim.player, P = Sim.P, a = Sim.aggr, rnd = Sim.rand;
   p.cd -= dt;
   const reach = P.range * (1 + 1.5 * (1 - a));          // tactical players take longer shots
   const dist = f => Math.hypot(f.x - p.x, f.y - p.y);
-  const vis = Sim.foes.filter(f => !f.dead && dist(f) <= SIM.sight && los(p.x, p.y, f.x, f.y));
+  // only the arena it's locked in counts, plus awake enemies that don't belong to an arena
+  const fair = f => !f.dead && !f.asleep && (f.home < 0 || !Sim.arena[f.home] || f.home === Sim.lockRoom);
+  const vis = Sim.foes.filter(f => fair(f) && dist(f) <= SIM.sight && los(p.x, p.y, f.x, f.y));
   for (const f of vis) Sim.known.set(f, [f.x, f.y]);
   const step = P.speed * dt;
   if (vis.length) {
@@ -2371,7 +2468,7 @@ function playerAct(dt) {
       shotFx(p.x, p.y, tgt.x, tgt.y, hit, PLAYER_COLOR);
       if (hit) hurtFoe(tgt, P.dmg);
       const pr = Sim.roomOf(p.x, p.y);
-      for (const f of Sim.foes) if (!f.dead && (f.home >= 0 ? f.home === pr : dist(f) <= SIM.hear)) f.alert = true;
+      for (const f of Sim.foes) if (!f.dead && !f.asleep && (f.home >= 0 ? f.home === pr : dist(f) <= SIM.hear)) f.alert = true;
     }
     // movement: close in (or back off a rusher), strafe around the target, and sidestep incoming projectiles
     const ux = (tgt.x - p.x) / d, uy = (tgt.y - p.y) / d, want = lerp(reach * 0.75, 5, a);
@@ -2404,6 +2501,17 @@ function playerAct(dt) {
   const here = cellAt(p.x, p.y);
   let goal = -1, kind = '';
   if (Sim.obj && Sim.obj.cell >= 0 && Sim.dist[Sim.obj.cell] >= 0) { goal = Sim.obj.cell; kind = 'obj'; }
+  // locked in: hunt the arena's remaining enemies; otherwise walk into the middle of any arena it has seen enemies in,
+  // so it's well past the doorway when the doors shut
+  if (goal < 0) {
+    let bd = Infinity;
+    for (const f of Sim.foes) {
+      if (f.dead || (Sim.lockRoom >= 0 ? f.home !== Sim.lockRoom : !(f.asleep && Sim.seen[cellAt(f.x, f.y)]))) continue;
+      let c = cellAt(f.x, f.y);
+      if (Sim.lockRoom < 0) { const rm = Sim.rooms[f.home], mid = rm.cx != null ? cellAt(rm.cx, rm.cy) : -1; if (mid >= 0 && Sim.dist[mid] >= 0) c = mid; }
+      if (c >= 0 && Sim.dist[c] >= 0 && Sim.dist[c] < bd) { bd = Sim.dist[c]; goal = c; kind = 'arena'; }
+    }
+  }
   if (goal < 0 && a > 0.3) {
     let bd = Infinity;
     for (const [f, pos] of Sim.known) {
@@ -2427,6 +2535,7 @@ function playerAct(dt) {
 function foeAct(f, dt) {
   const p = Sim.player, T = f.type, d = Math.hypot(p.x - f.x, p.y - f.y), rnd = Sim.rand; f.cd -= dt;
   const sees = d <= Math.max(T.range * 1.2, 20) && los(f.x, f.y, p.x, p.y);
+  if (f.asleep) return;
   if (sees) f.alert = true;
   if (!f.alert) return;
   f.face = Math.atan2(p.y - f.y, p.x - f.x);
@@ -2434,7 +2543,7 @@ function foeAct(f, dt) {
   if (T.attack === 'melee') {
     if (d <= SIM.melee) { if (f.cd <= 0) { f.cd = 1 / T.rate; hurtPlayer(T.dmg, T); Sim.fx.push({ k: 'melee', x: p.x, y: p.y, t: Sim.t, color: T.color }); } }
     else if (sees && d < 2.5) moveToward(f, p.x, p.y, step);
-    else descend(f, Sim.dist, step);
+    else descend(f, Sim.dist, step, -1, foeWalk);
     return;
   }
   if (sees && d <= T.range) {
@@ -2446,9 +2555,9 @@ function foeAct(f, dt) {
         Sim.proj.push({ x: f.x, y: f.y, vx: Math.cos(ang) * T.pspeed, vy: Math.sin(ang) * T.pspeed, life: T.range * 1.5 / T.pspeed, type: T });
       }
     }
-    if (T.move === 'rush' && d > T.range * 0.4) descend(f, Sim.dist, step);
-    else if (T.move === 'keep' && d < T.range * 0.4) descend(f, Sim.dist, step * 0.8, 1);
-  } else descend(f, Sim.dist, step);
+    if (T.move === 'rush' && d > T.range * 0.4) descend(f, Sim.dist, step, -1, foeWalk);
+    else if (T.move === 'keep' && d < T.range * 0.4) descend(f, Sim.dist, step * 0.8, 1, foeWalk);
+  } else descend(f, Sim.dist, step, -1, foeWalk);
 }
 function projStep(dt) {
   const p = Sim.player;
@@ -2467,7 +2576,7 @@ function simStep() {
   if (Sim.t >= Sim.next) { Sim.next = Sim.t + SIM.replan; simTick(); }
   playerAct(dt);
   const live = Sim.foes.filter(f => !f.dead);
-  const canStand = (f, x, y) => { const c = cellAt(x, y); return canWalk(c) && (f.home < 0 || Sim.cellRoom[c] === f.home); };
+  const canStand = (f, x, y) => { const c = cellAt(x, y); return foeWalk(c) && (f.home < 0 || Sim.cellRoom[c] === f.home); };
   for (const f of live) {
     const ox = f.x, oy = f.y;
     foeAct(f, dt);
