@@ -729,7 +729,7 @@ function normalize(m) {
       return Object.assign(o, { ref: String(i.ref || ''), rot: num(i.rot, 0), w: Math.max(MIN_SIZE, num(i.w, 1)), h: Math.max(MIN_SIZE, num(i.h, 1)),
         sx: Math.max(0.01, num(i.sx, 1)), sy: Math.max(0.01, num(i.sy, 1)), lock: i.lock !== false, ...(i.sizeLock ? { sizeLock: true } : {}) });
     }
-    if (i.kind === 'enemy') { o.type = String(i.type || ''); return o; }
+    if (i.kind === 'enemy') { o.type = String(i.type || ''); if (i.roam) o.roam = true; return o; }
     if (i.kind === 'player') { o.rot = norm360(num(i.rot, 0)); return o; }
     return Object.assign(o, {
       w: Math.max(MIN_SIZE, num(i.w, 4)), h: Math.max(MIN_SIZE, num(i.h, 4)), rot: num(i.rot, 0),
@@ -1890,7 +1890,9 @@ function barHTML(it, g) {
     more = `<div class="prow"><span class="lbl">Type</span><div class="ctrl">
       ${Bestiary.data.types.map(t => `<button class="typechip" data-settype="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
     </div></div>
-    <div class="prow"><span class="lbl">Stats</span><div class="ctrl"><span class="note mono" data-b="stats"></span></div></div>` + pos;
+    <div class="prow"><span class="lbl">Stats</span><div class="ctrl"><span class="note mono" data-b="stats"></span></div></div>
+    <div class="prow"><span class="lbl">In the sim</span><div class="ctrl"><div class="seg"><button data-roam="stay">Stays in its room</button><button data-roam="roam">Roams</button></div>
+      <span class="note">Room enemies keep their room locked until they're dead and never leave it. Roamers hunt anywhere and don't hold doors shut.</span></div></div>` + pos;
   } else if (it.kind === 'symbol') {
     more = `<div class="prow"><span class="lbl">Symbol</span><div class="ctrl">
       ${Library.data.symbols.map(t => `<button class="typechip" data-setsym="${esc(t.id)}"><i style="background:${t.color}"></i>${esc(t.name)}</button>`).join('')}
@@ -1977,6 +1979,7 @@ function bindBar(it) {
     }
   });
   on('[data-setsym]', (x, b) => mutate(() => { x.sym = b.dataset.setsym; }));
+  on('[data-roam]', (x, b) => mutate(() => { if (b.dataset.roam === 'roam') x.roam = true; else delete x.roam; }));
   on('[data-dstep]', (x, b) => mutate(() => { x.w = round2(clamp(x.w + +b.dataset.dstep * 0.1, 0.5, 8)); }));
   on('[data-dlock]', (x, b) => mutate(() => { x.lockMode = b.dataset.dlock; }));
   on('[data-sides]', (x, b) => {
@@ -2026,7 +2029,7 @@ function syncBar() {
   const floor = map.floors[floorIndex()].name;
   if (it.kind === 'enemy') {
     const t = typeOf(it.type);
-    txt('dims', `${floor} · ${fmt(it.x)}, ${fmt(it.y)}`); pressed('data-settype', it.type);
+    txt('dims', `${floor} · ${it.roam ? 'roams' : 'stays in its room'}`); pressed('data-settype', it.type); pressed('data-roam', it.roam ? 'roam' : 'stay');
     txt('stats', statLine(t));
     return;
   }
@@ -2131,7 +2134,7 @@ function buildSimWorld(fl, items) {
     r.label = 'R' + (k + 1);
     const ring = r.mp[0] && r.mp[0][0]; if (!ring) return;
     let a = 0, cx = 0, cy = 0;
-    for (let i = 0; i < ring.length - 1; i++) { const [x0, y0] = ring[i], [x1, y1] = ring[i + 1], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+    for (let i = 0; i < ring.length; i++) { const [x0, y0] = ring[i], [x1, y1] = ring[(i + 1) % ring.length], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
     if (Math.abs(a) > 1e-6) { r.cx = cx / (3 * a); r.cy = cy / (3 * a); } else { const b = ringBox(ring); r.cx = (b.x0 + b.x1) / 2; r.cy = (b.y0 + b.y1) / 2; }
   });
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -2174,7 +2177,16 @@ function buildSimWorld(fl, items) {
     const a = rad(d.rot), ox = -Math.sin(a) * 0.9, oy = Math.cos(a) * 0.9;
     d.rooms = [...new Set([roomOf(d.x + ox, d.y + oy), roomOf(d.x - ox, d.y - oy)].filter(r => r >= 0))];
   }
-  return { floor: fl, grid: { x0, y0, cs, nx, ny, walk, opaque, doorAt }, doors, rooms, roomOf, seen: new Uint8Array(N),
+  // which room each cell belongs to, so enemies can be kept inside their own room cheaply
+  const cellRoom = new Int16Array(N).fill(-1);
+  rooms.forEach((r, k) => {
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const poly of r.mp) for (const ring of poly) for (const [x, y] of ring) { bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y); }
+    const i0 = Math.max(0, Math.floor((bx0 - x0) / cs)), i1 = Math.min(nx - 1, Math.floor((bx1 - x0) / cs));
+    const j0 = Math.max(0, Math.floor((by0 - y0) / cs)), j1 = Math.min(ny - 1, Math.floor((by1 - y0) / cs));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cellRoom[j * nx + i] < 0 && inMulti(x0 + (i + 0.5) * cs, y0 + (j + 0.5) * cs, r.mp)) cellRoom[j * nx + i] = k;
+  });
+  return { floor: fl, grid: { x0, y0, cs, nx, ny, walk, opaque, doorAt }, doors, rooms, roomOf, cellRoom, seen: new Uint8Array(N),
     dist: new Int32Array(N), q: new Int32Array(N), gfield: new Int32Array(N), gq: new Int32Array(N) };
 }
 const cellAt = (x, y) => { const g = Sim.grid, i = Math.floor((x - g.x0) / g.cs), j = Math.floor((y - g.y0) / g.cs); return i < 0 || j < 0 || i >= g.nx || j >= g.ny ? -1 : j * g.nx + i; };
@@ -2249,13 +2261,17 @@ function simReset(seed) {
   const pl = items.find(i => i.kind === 'player'), obj = items.find(i => i.kind === 'symbol' && isObjective(symbolOf(i.sym)));
   W.doors.forEach(d => { d.locked = false; });
   W.seen.fill(0);
-  Object.assign(Sim, { grid: W.grid, doors: W.doors, rooms: W.rooms, roomOf: W.roomOf, seen: W.seen, dist: W.dist, q: W.q, gfield: W.gfield, gq: W.gq, floor: W.floor });
+  Object.assign(Sim, { grid: W.grid, doors: W.doors, rooms: W.rooms, roomOf: W.roomOf, cellRoom: W.cellRoom, seen: W.seen, dist: W.dist, q: W.q, gfield: W.gfield, gq: W.gq, floor: W.floor });
   Object.assign(Sim, {
     seed, rand: rnd, P, aggr: settings.aggr ?? 1, t: 0, acc: 0, next: 0, over: null, fx: [], proj: [], trail: [], msg: '', msgT: 0,
     lockRoom: -1, stuckT: 0, goal: -1, goalKind: '', dmgTaken: 0, dmgBy: {}, roomLog: [], known: new Map(), heat: new Float32Array(W.grid.nx * W.grid.ny),
     obj: obj ? { x: obj.x, y: obj.y, cell: cellAt(obj.x, obj.y), name: symbolOf(obj.sym).name } : null,
     player: { x: pl.x, y: pl.y, hp: P.hp, cd: 0, face: rad(pl.rot || 0) - Math.PI / 2, side: rnd() < 0.5 ? 1 : -1, sideT: 0 },
-    foes: items.filter(i => i.kind === 'enemy').map(f => { const t = typeOf(f.type); return { id: f.id, type: t, x: f.x, y: f.y, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false }; }),
+    // each enemy belongs to the room it starts in, unless it's set to roam
+    foes: items.filter(i => i.kind === 'enemy').map(f => {
+      const t = typeOf(f.type), c = cellAt(f.x, f.y), home = f.roam ? -1 : c >= 0 && W.cellRoom[c] >= 0 ? W.cellRoom[c] : W.roomOf(f.x, f.y);
+      return { id: f.id, type: t, x: f.x, y: f.y, home, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false };
+    }),
   });
   simTick();
 }
@@ -2297,7 +2313,7 @@ function setRoomDoors(r, locked) {
 function simTick() {
   const p = Sim.player, alive = Sim.foes.filter(f => !f.dead);
   const pc = cellAt(p.x, p.y), inDoor = pc >= 0 && Sim.grid.doorAt[pc] >= 0, pr = Sim.roomOf(p.x, p.y);
-  const inRoom = r => alive.filter(f => Sim.roomOf(f.x, f.y) === r);
+  const inRoom = r => alive.filter(f => f.home === r);
   if (Sim.lockRoom >= 0) {
     if (!inRoom(Sim.lockRoom).length) {
       setRoomDoors(Sim.lockRoom, false);
@@ -2354,7 +2370,8 @@ function playerAct(dt) {
       const hit = rnd() < playerHit(P.acc, d, reach);
       shotFx(p.x, p.y, tgt.x, tgt.y, hit, PLAYER_COLOR);
       if (hit) hurtFoe(tgt, P.dmg);
-      for (const f of Sim.foes) if (!f.dead && dist(f) <= SIM.hear) f.alert = true;
+      const pr = Sim.roomOf(p.x, p.y);
+      for (const f of Sim.foes) if (!f.dead && (f.home >= 0 ? f.home === pr : dist(f) <= SIM.hear)) f.alert = true;
     }
     // movement: close in (or back off a rusher), strafe around the target, and sidestep incoming projectiles
     const ux = (tgt.x - p.x) / d, uy = (tgt.y - p.y) / d, want = lerp(reach * 0.75, 5, a);
@@ -2450,13 +2467,18 @@ function simStep() {
   if (Sim.t >= Sim.next) { Sim.next = Sim.t + SIM.replan; simTick(); }
   playerAct(dt);
   const live = Sim.foes.filter(f => !f.dead);
-  for (const f of live) foeAct(f, dt);
+  const canStand = (f, x, y) => { const c = cellAt(x, y); return canWalk(c) && (f.home < 0 || Sim.cellRoom[c] === f.home); };
+  for (const f of live) {
+    const ox = f.x, oy = f.y;
+    foeAct(f, dt);
+    if (f.home >= 0 && (f.x !== ox || f.y !== oy) && !canStand(f, f.x, f.y)) { f.x = ox; f.y = oy; }   // waits at its own doorway
+  }
   // keep enemies from stacking on one spot
   for (let a = 0; a < live.length; a++) for (let b = a + 1; b < live.length; b++) {
     const A = live[a], Bf = live[b], dx = Bf.x - A.x, dy = Bf.y - A.y, d = Math.hypot(dx, dy);
     if (d > 0.01 && d < 0.6) { const push = (0.6 - d) / 2, ux = dx / d * push, uy = dy / d * push;
-      if (canWalk(cellAt(A.x - ux, A.y - uy))) { A.x -= ux; A.y -= uy; }
-      if (canWalk(cellAt(Bf.x + ux, Bf.y + uy))) { Bf.x += ux; Bf.y += uy; } }
+      if (canStand(A, A.x - ux, A.y - uy)) { A.x -= ux; A.y -= uy; }
+      if (canStand(Bf, Bf.x + ux, Bf.y + uy)) { Bf.x += ux; Bf.y += uy; } }
   }
   projStep(dt);
   Sim.fx = Sim.fx.filter(e => Sim.t - e.t < 0.5);
@@ -2630,7 +2652,7 @@ function drawSimLayer(c, R) {
     c.restore();
     return;
   }
-  const p = Sim.player, counts = Sim.world.rooms.map((_, k) => Sim.foes.filter(f => !f.dead && Sim.roomOf(f.x, f.y) === k).length);
+  const p = Sim.player, counts = Sim.world.rooms.map((_, k) => Sim.foes.filter(f => !f.dead && f.home === k).length);
   drawRoomLabels(c, R, counts);
   drawTrail(c, R, [...Sim.trail, [p.x, p.y]], Sim.mode === 'replay' ? runColor(Sim.replay) : PLAYER_COLOR, 0.6, true);
   if (Sim.obj) { const [x, y] = w2s(R, Sim.obj.x, Sim.obj.y); c.save(); c.strokeStyle = T.accent; c.lineWidth = 2; c.setLineDash([3, 3]); c.beginPath(); c.arc(x, y, markerPx(R) + 6 + Math.sin(Sim.t * 4) * 2, 0, Math.PI * 2); c.stroke(); c.restore(); }
