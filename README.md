@@ -10,20 +10,23 @@ The whole app is one file: `map-designer.html`. It runs two ways:
 
 ### Building the installed app
 
-`docs/` is generated; don't edit it by hand. After changing `map-designer.html`:
+`docs/` is generated; don't edit it by hand. Day-to-day changes are tested through the Claude artifact; `docs/` is only rebuilt at a milestone, because pushing it updates everyone's installed app.
 
 ```
-python3 tools/build_pwa.py      # rebuilds docs/ and stamps a new version so installed apps offer "Update ready"
+python3 tools/build_pwa.py /tmp/test   # test build somewhere else; docs/ is left alone
+python3 tools/build_pwa.py      # milestone: rebuilds docs/ and stamps a new version so installed apps offer "Update ready"
 python3 tools/make_icons.py     # only if the icon design changes
 python3 tools/snapshot.py v2    # freeze the current build as a saved version (after build_pwa.py), then build again
 ```
 
 `snapshots/` holds the frozen versions; `build_pwa.py` copies them into `docs/` unchanged.
 
-`pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping library (MIT).
+`pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping and three.js libraries (both MIT).
 GitHub Pages serves `docs/` (Settings → Pages → Deploy from a branch → this branch, `/docs`).
 
-## What it does (v7)
+## What it does (v8)
+
+- 3D view (cube button in the top bar): Orbit around the map, or Walk through it at eye height with a thumbstick (WASD on a computer) and real collisions. Rooms get walls, ceilings and door gaps; solids become blocks or platforms with their own height; floors stack at their own heights. Eye height, radius, walk speed and default floor height are in Settings.
 
 - Main menu: New Blank, Maps, Shapes & Symbols, Bestiary, Settings, and Continue. Each opens a full page.
 - Shapes & Symbols: a Shape Builder for custom shapes made from circles and polygons. Every placed copy is an instance of the saved master, so editing the master updates them all; Break apart turns one copy back into plain shapes.

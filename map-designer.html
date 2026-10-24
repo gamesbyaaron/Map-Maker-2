@@ -329,6 +329,22 @@ i b { font-weight: 600; }
 @media (max-width: 420px) { .res-row { grid-template-columns: 12px auto 1fr auto auto; } .res-row .watch { display: none; } }
 .card-body label .seg { justify-self: start; text-transform: none; letter-spacing: 0; font-family: var(--font-body); font-size: 14px; }
 .sim-ui .dock, .sim-ui .floors, .sim-ui #lockmap, .sim-ui #undo, .sim-ui #redo, .sim-ui #status { display: none !important; }
+/* 3D view */
+.v3d { position: absolute; inset: 0; z-index: 5; background: var(--grid-bg); }
+#v3dcanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.v3d-top { position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); max-width: calc(100% - 124px); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.v3d-top .seg, .v3d-top .smallbtn { background: var(--surface); box-shadow: var(--shadow); }
+.v3d-top .seg button { padding: 8px 14px; font-weight: 600; }
+.smallbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.v3d-help {
+  position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);
+  padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); text-align: center; pointer-events: none;
+}
+.stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 28%, transparent); background: color-mix(in srgb, var(--surface) 30%, transparent); pointer-events: none; }
+.stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: var(--shadow); }
+.v3d-ui .dock, .v3d-ui .bar, .v3d-ui .simfab, .v3d-ui .hint, .v3d-ui .scale, .v3d-ui #lockmap, .v3d-ui #undo, .v3d-ui #redo { display: none !important; }
+.v3d-ui .floors { z-index: 6; }
+.sim-ui #view3d, .builder-ui #view3d { display: none !important; }
 .toast {
   position: fixed; z-index: 60; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   width: max-content; max-width: min(92vw, 420px); background: var(--fg); color: var(--surface); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow);
@@ -376,6 +392,7 @@ i b { font-weight: 600; }
   </button>
   <button class="status" id="status" data-state="ok" aria-live="polite"><i></i><span id="statustext">Ready</span></button>
   <button class="btn primary" id="buildsave" hidden>Save shape</button>
+  <button class="iconbtn" id="view3d" aria-label="3D view" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></button>
   <button class="iconbtn" id="lockmap" aria-label="Lock map" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg></button>
   <button class="iconbtn" id="undo" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
   <button class="iconbtn" id="redo" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
@@ -393,6 +410,16 @@ i b { font-weight: 600; }
   <div class="bar" id="bar" hidden></div>
   <button class="simfab" id="simfab"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Simulate</button>
   <div class="simres" id="simres" hidden></div>
+  <div class="v3d" id="v3d" hidden>
+    <canvas id="v3dcanvas" aria-label="3D view of the map"></canvas>
+    <div class="v3d-top">
+      <div class="seg" role="group" aria-label="Camera"><button data-v3="orbit">Orbit</button><button data-v3="walk">Walk</button></div>
+      <button class="smallbtn" id="v3dall" aria-pressed="false">All floors</button>
+      <button class="smallbtn" id="v3dreset">Reset view</button>
+    </div>
+    <div class="v3d-help" id="v3dhelp"></div>
+    <div class="stick" id="v3dstick" hidden><i></i></div>
+  </div>
   <div class="simbar" id="simbar" hidden>
     <div class="grow"><strong id="simstate">Running</strong><span id="simsub">0:00</span></div>
     <button class="iconbtn" id="simrestart" aria-label="Restart"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
@@ -523,7 +550,7 @@ const settings = (() => {
     roomLine: 0.3, roomAlpha: 0.35, solidLine: 1.5, solidAlpha: 1, aggr: 1, player: { ...DEFAULT_PLAYER } };
   try { return { ...d, ...JSON.parse(LS.get('mm2.settings') || '{}') }; } catch { return d; }
 })();
-const saveSettings = () => LS.set('mm2.settings', JSON.stringify(settings));
+const saveSettings = () => { LS.set('mm2.settings', JSON.stringify(settings)); if (V3.open) V3.stale = V3.stale || true; };
 
 /* ---------- bestiary: enemy types shared by every map ---------- */
 function normType(t) {
@@ -712,13 +739,14 @@ function sampleMap() {
 function normalize(m) {
   if (!m || typeof m !== 'object') throw new Error('not a map');
   if (!Array.isArray(m.floors) || !m.floors.length) m.floors = [{ id: uid(), name: 'Ground' }];
-  m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor') }));
+  m.floors = m.floors.map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Floor'), ...(+f.ht >= 2 && +f.ht <= 20 ? { ht: +f.ht } : {}) }));
   if (!m.floors.some(f => f.id === m.activeFloor)) m.activeFloor = m.floors[0].id;
   m.enemyTypes = (Array.isArray(m.enemyTypes) ? m.enemyTypes : []).filter(t => t && t.id).map(normType);
   m.customShapes = (Array.isArray(m.customShapes) ? m.customShapes : []).filter(t => t && t.id).map(normMaster);
   m.symbolDefs = (Array.isArray(m.symbolDefs) ? m.symbolDefs : []).filter(t => t && t.id).map(normSymbol);
   const floorIds = new Set(m.floors.map(f => f.id));
   const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  const in3d = i => ({ ...(i.d3 === 'block' || i.d3 === 'plat' ? { d3: i.d3 } : {}), ...(num(i.ht, 0) >= 0.1 ? { ht: Math.min(30, +i.ht) } : {}) });
   m.items = (Array.isArray(m.items) ? m.items : []).filter(i => i && floorIds.has(i.floor) && ['circle', 'poly', 'enemy', 'player', 'custom', 'symbol', 'door'].includes(i.kind)).map(i => {
     const o = { id: String(i.id || uid()), floor: i.floor, kind: i.kind, x: num(i.x, 0), y: num(i.y, 0) };
     if (i.locked) o.locked = true;
@@ -727,7 +755,7 @@ function normalize(m) {
     if (i.kind === 'door') return Object.assign(o, { w: clamp(num(i.w, 1.2), 0.5, 8), h: 0.6, rot: num(i.rot, 0), lockMode: i.lockMode === 'open' ? 'open' : 'clear', ...(i.lockFor ? { lockFor: String(i.lockFor) } : {}) });
     if (i.kind === 'custom') {
       return Object.assign(o, { ref: String(i.ref || ''), rot: num(i.rot, 0), w: Math.max(MIN_SIZE, num(i.w, 1)), h: Math.max(MIN_SIZE, num(i.h, 1)),
-        sx: Math.max(0.01, num(i.sx, 1)), sy: Math.max(0.01, num(i.sy, 1)), lock: i.lock !== false, ...(i.sizeLock ? { sizeLock: true } : {}) });
+        sx: Math.max(0.01, num(i.sx, 1)), sy: Math.max(0.01, num(i.sy, 1)), lock: i.lock !== false, ...(i.sizeLock ? { sizeLock: true } : {}), ...in3d(i) });
     }
     if (i.kind === 'enemy') { o.type = String(i.type || ''); if (i.roam) o.roam = true; return o; }
     if (i.kind === 'player') { o.rot = norm360(num(i.rot, 0)); return o; }
@@ -738,6 +766,7 @@ function normalize(m) {
       walls: i.walls === 'divide' ? 'divide' : 'merge',
       ...(i.arena === 'on' || i.arena === 'off' ? { arena: i.arena } : {}),
       ...(i.sizeLock ? { sizeLock: true } : {}),
+      ...(i.style === 'room' ? {} : in3d(i)),
     });
   });
   m.id = String(m.id || uid());
@@ -1136,6 +1165,7 @@ function readTheme() {
   const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
   T = { warn: g('--warn'), danger: g('--danger'), ok: g('--ok'), gridBg: g('--grid-bg'), minor: g('--grid-minor'), major: g('--grid-major'), accent: g('--accent'), surface: g('--surface'), wall: g('--wall'),
     fg: g('--fg'), muted: g('--muted'), ring: g('--enemy-ring'), dark: g('--is-dark') === '1', display: g('--font-display'), mono: g('--font-mono') };
+  if (V3.open) V3.stale = V3.stale || true;
   requestDraw();
 }
 let drawQueued = false;
@@ -1765,7 +1795,7 @@ window.addEventListener('pointerup', e => {
 window.addEventListener('pointercancel', e => { if (trayDrag && e.pointerId === trayDrag.id) endTrayDrag(); });
 
 /* ---------- rendering UI ---------- */
-function renderAll() { renderHeader(); renderFloors(); renderTray(); renderTools(); renderBar(); updateHint(); updateUndo(); requestDraw(); }
+function renderAll() { if (V3.open) V3.stale = V3.stale || true; renderHeader(); renderFloors(); renderTray(); renderTools(); renderBar(); updateHint(); updateUndo(); requestDraw(); }
 function renderHeader() {
   $('#mapname').textContent = map.name;
   $('#eyebrowtext').textContent = builder ? 'Shape builder' : 'Map';
@@ -1776,6 +1806,8 @@ function renderHeader() {
   $('#lockmap').setAttribute('aria-pressed', String(!!map.locked));
   $('#lockmap').setAttribute('aria-label', map.locked ? 'Unlock map' : 'Lock map');
   document.body.classList.toggle('locked-ui', !!map.locked);
+  $('#view3d').setAttribute('aria-pressed', String(V3.open));
+  $('#view3d').setAttribute('aria-label', V3.open ? 'Back to the 2D editor' : '3D view');
 }
 function updateUndo() { $('#undo').disabled = map.locked || !history.length; $('#redo').disabled = map.locked || !future.length; }
 function renderFloors() {
@@ -1949,6 +1981,10 @@ function barHTML(it, g) {
     ${close}
   </div>`;
   if (!barMore) return row;
+  const d3row = builder ? '' : `<div class="prow"><span class="lbl">In 3D</span><div class="ctrl">
+    <div class="seg"><button data-d3="auto">Auto</button><button data-d3="block">Block</button><button data-d3="plat">Platform</button></div>
+    <div class="stepper"><span>Tall</span><button data-ht="-1" aria-label="Lower">−</button><input id="p-ht" type="number" inputmode="decimal" step="0.25" aria-label="Height in metres"><button data-ht="1" aria-label="Taller">+</button></div>
+    <span class="note" data-b="d3note"></span></div></div>`;
   const pos = `<div class="prow"><span class="lbl">Position</span><div class="ctrl">
     <label class="num"><span>X</span><input id="p-x" type="number" inputmode="decimal" step="0.5"></label>
     <label class="num"><span>Y</span><input id="p-y" type="number" inputmode="decimal" step="0.5"></label>
@@ -1973,6 +2009,7 @@ function barHTML(it, g) {
       <button class="lockbtn" data-act="lock" aria-label="Keep proportions">${ic('lock')}</button>
       <button class="smallbtn" data-act="sizelock" aria-pressed="${!!it.sizeLock}">${ic('padlock')}${it.sizeLock ? 'Size locked' : 'Lock size'}</button>
     </div></div>
+    ${d3row}
     <div class="prow"><label class="lbl" for="p-rot">Rotate</label><div class="ctrl"><input type="range" id="p-rot" min="0" max="359" step="1"><output data-b="rot"></output></div></div>
     ${pos}
     <div class="prow"><span class="lbl">Actions</span><div class="ctrl">
@@ -2006,6 +2043,7 @@ function barHTML(it, g) {
     const room = it.style === 'room';
     more = `
     <div class="prow"><span class="lbl">Style</span><div class="ctrl"><div class="seg"><button data-style="room">Room</button><button data-style="solid">Solid</button></div></div></div>
+    ${room ? '' : d3row}
     ${room && !builder ? (() => {
       const info = roomInfo(it.floor), k = info.rooms.findIndex(rm => rm.ids.includes(it.id)), cur = it.arena || 'auto';
       return `<div class="prow"><span class="lbl">Arena</span><div class="ctrl"><div class="seg">
@@ -2083,6 +2121,8 @@ function bindBar(it) {
   });
   on('[data-color]', (x, b) => { map.lastColor = b.dataset.color; mutate(() => { x.color = b.dataset.color; }); });
   on('[data-settype]', (x, b) => mutate(() => { x.type = b.dataset.settype; }));
+  on('[data-d3]', (x, b) => mutate(() => { if (b.dataset.d3 === 'auto') { delete x.d3; delete x.ht; } else x.d3 = b.dataset.d3; }));
+  on('[data-ht]', (x, b) => { const s3 = solid3D(x); mutate(() => { x.d3 = 'block'; x.ht = round2(clamp((s3.mode === 'block' ? s3.ht : 1) + +b.dataset.ht * 0.25, 0.25, 30)); }); });
   on('[data-step]', (x, b) => { const [dim, dir] = b.dataset.step.split(':'); mutate(() => setSize(x, dim, round2(x[dim] + +dir * settings.step))); });
   const sides = bar.querySelector('#p-sides');
   if (sides) liveInput(sides, v => { const x = cur(); if (x) { x.sides = v; map.lastSides = v; } });
@@ -2092,6 +2132,7 @@ function bindBar(it) {
   numIn('#p-w', (x, v) => setSize(x, 'w', v));
   numIn('#p-h', (x, v) => setSize(x, 'h', v));
   numIn('#p-dw', (x, v) => { x.w = clamp(v, 0.5, 8); });
+  numIn('#p-ht', (x, v) => { x.d3 = 'block'; x.ht = clamp(v, 0.1, 30); });
   numIn('#p-x', (x, v) => { x.x = v; });
   numIn('#p-y', (x, v) => { x.y = v; });
 }
@@ -2137,6 +2178,13 @@ function syncBar() {
   set('#p-rot', Math.round(it.rot)); txt('rot', `${Math.round(it.rot)}°`);
   set('#p-w', round2(it.w)); set('#p-h', round2(it.h));
   pressed('data-kind', it.kind); pressed('data-style', it.style);
+  if (bar.querySelector('#p-ht')) {
+    const s3 = solid3D(it);
+    set('#p-ht', round2(s3.ht)); pressed('data-d3', it.d3 || 'auto');
+    bar.querySelectorAll('[data-ht], #p-ht').forEach(el => { el.disabled = s3.mode === 'plat'; });
+    txt('d3note', it.d3 ? (s3.mode === 'plat' ? 'A thin floor at this level, for catwalks and ledges.' : 'A block this tall, standing on the floor.')
+      : `Auto: ${s3.auto === 'plat' ? 'a platform, since this floor has no rooms' : 'a block as tall as the floor'}.`);
+  }
   if (g) pressed('data-walls', g.mode);
   bar.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === it.color.toLowerCase())));
   const lock = bar.querySelector('[data-act="lock"]'); if (lock) lock.setAttribute('aria-pressed', String(!!it.lock));
@@ -2802,6 +2850,348 @@ $('#simplay').addEventListener('click', () => { if (!Sim.over) { Sim.playing = !
 $('#simspeed').addEventListener('click', () => { Sim.speed = Sim.speed === 1 ? 2 : Sim.speed === 2 ? 4 : 1; });
 $('#simbatch').addEventListener('click', () => { if (Sim.mode === 'live') runBatch(); else if (Batch && Batch.done === Batch.n) showResults(); });
 
+/* ---------- 3D view: the map raised into walls and blocks, to orbit around or walk through ----------
+   Rooms get floors, walls (doors cut a gap with a lintel above) and ceilings that only show from below.
+   Solids become blocks, or thin platforms on floors with no rooms. Nothing is edited here. */
+const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js';
+const DEF_V3 = { wall: 3, eye: 1.7, rad: 0.4, speed: 5, ceil: true };
+const DOOR_H = 2.2, PLAT_T = 0.3, STEP_UP = 0.5;
+const v3s = () => ({ ...DEF_V3, ...(settings.v3 || {}) });
+const floorHt = f => (f && f.ht) || v3s().wall;
+function floorElev(id) { let z = 0; for (const f of map.floors) { if (f.id === id) return z; z += floorHt(f); } return 0; }
+const floorHasRooms = fl => map.items.some(i => i.floor === fl && (isRoom(i) || (i.kind === 'custom' && (masterOf(i.ref)?.parts || []).some(p => p.style === 'room'))));
+// a solid (or a custom shape's solid parts): a block standing on the floor, or a thin platform at floor level
+function solid3D(it) {
+  const auto = floorHasRooms(it.floor) ? 'block' : 'plat', mode = it.d3 || auto;
+  return { mode, auto, ht: mode === 'plat' ? PLAT_T : (it.ht || floorHt(map.floors.find(f => f.id === it.floor))) };
+}
+let threeP = null;
+function loadThree() {
+  if (window.THREE) return Promise.resolve(window.THREE);
+  if (!threeP) threeP = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = THREE_URL;
+    s.onload = () => window.THREE ? res(window.THREE) : rej(new Error('no THREE'));
+    s.onerror = () => { threeP = null; s.remove(); rej(new Error('load failed')); };
+    document.head.appendChild(s);
+  });
+  return threeP;
+}
+const V3 = { open: false, mode: 'orbit', all: false, stale: false, R: null, scene: null, cam: null, dirty: true, raf: 0, last: 0,
+  orbit: { tx: 0, ty: 0, tz: 0, yaw: 0.35, pitch: 0.85, dist: 40 }, walk: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, floor: null },
+  keys: new Set(), stick: null, ptrs: new Map(), pinch: null, col: null, playerObjs: [] };
+
+async function open3D() {
+  if (V3.open) return;
+  try { await loadThree(); } catch { toast('The 3D view couldn’t load. It needs an internet connection the first time.'); return; }
+  clearSel(); tool = 'select';
+  V3.open = true; V3.walk.floor = null;
+  document.body.classList.add('v3d-ui'); $('#v3d').hidden = false;
+  if (!V3.R) init3D();
+  renderAll(); V3.stale = 'reset';
+  set3DMode(V3.mode);
+  resize3D();
+  if (!V3.raf) { V3.last = performance.now(); V3.raf = requestAnimationFrame(loop3D); }
+}
+function close3D() {
+  V3.open = false; cancelAnimationFrame(V3.raf); V3.raf = 0;
+  V3.keys.clear(); V3.ptrs.clear(); endStick();
+  document.body.classList.remove('v3d-ui'); $('#v3d').hidden = true;
+  renderAll();
+}
+function init3D() {
+  const T3 = window.THREE, cv = $('#v3dcanvas');
+  V3.R = new T3.WebGLRenderer({ canvas: cv, antialias: true });
+  V3.R.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  V3.cam = new T3.PerspectiveCamera(65, 1, 0.05, 3000);
+  new ResizeObserver(() => { if (V3.open) resize3D(); }).observe($('#v3d'));
+  bind3DInput(cv);
+}
+function resize3D() {
+  const el = $('#v3d'), w = el.clientWidth, h = el.clientHeight;
+  if (!w || !h) return;
+  V3.R.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); V3.dirty = true;
+}
+function set3DMode(m) {
+  V3.mode = m;
+  if (m === 'walk' && V3.walk.floor !== map.activeFloor) walkReset();
+  document.querySelectorAll('[data-v3]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v3 === m)));
+  $('#v3dall').hidden = m === 'walk';
+  $('#v3dall').setAttribute('aria-pressed', String(V3.all));
+  const fine = matchMedia('(pointer: fine)').matches;
+  $('#v3dhelp').textContent = m === 'walk'
+    ? (fine ? 'W A S D to move · drag to look · Esc for 2D' : 'Left thumb moves · drag on the right to look')
+    : (fine ? 'Drag to turn · right-drag to move · scroll to zoom' : 'Drag to turn · pinch to zoom · two fingers to move');
+  for (const o of V3.playerObjs) o.visible = m !== 'walk';
+  endStick(); V3.dirty = true;
+}
+function loop3D(now) {
+  V3.raf = requestAnimationFrame(loop3D);
+  const dt = Math.min(0.05, Math.max(0, (now - V3.last) / 1000)); V3.last = now;
+  if (V3.stale) { const reset = V3.stale === 'reset'; V3.stale = false; build3D(reset); }
+  if (!V3.scene) return;
+  if (V3.mode === 'walk' && stepWalk(dt)) V3.dirty = true;
+  if (!V3.dirty) return;
+  V3.dirty = false;
+  placeCamera();
+  V3.R.render(V3.scene, V3.cam);
+}
+function placeCamera() {
+  const C = V3.cam;
+  if (V3.mode === 'walk') {
+    const W = V3.walk, eye = W.z + v3s().eye, cp = Math.cos(W.pitch);
+    if (C.near !== 0.05) { C.near = 0.05; C.updateProjectionMatrix(); }
+    C.position.set(W.x, eye, W.y);
+    C.lookAt(W.x + Math.sin(W.yaw) * cp, eye + Math.sin(W.pitch), W.y - Math.cos(W.yaw) * cp);
+  } else {
+    const O = V3.orbit, cp = Math.cos(O.pitch);
+    const near = clamp(O.dist / 150, 0.05, 4);   // keeps depth precise from far away, so floors don't flicker against the grid
+    if (C.near !== near) { C.near = near; C.updateProjectionMatrix(); }
+    C.position.set(O.tx + O.dist * cp * Math.sin(O.yaw), O.ty + O.dist * Math.sin(O.pitch), O.tz + O.dist * cp * Math.cos(O.yaw));
+    C.lookAt(O.tx, O.ty, O.tz);
+  }
+}
+
+// geometry helpers: map (x, y) is three (x, z); height is three y
+function shapesFrom(mp, up) {
+  const T3 = window.THREE, V = ([x, y]) => new T3.Vector2(x, up ? -y : y);
+  return mp.filter(poly => poly[0] && poly[0].length > 2).map(poly => {
+    const s = new T3.Shape(poly[0].map(V));
+    for (const h of poly.slice(1)) s.holes.push(new T3.Path(h.map(V)));
+    return s;
+  });
+}
+// one box per call into a shared triangle list; faces are wound to face outwards so back faces can be culled
+function boxInto(B, x, z, a, len, th, y0, y1) {
+  const ux = Math.cos(a), uz = Math.sin(a), nx = -uz, nz = ux, hl = len / 2, hw = th / 2;
+  const P = (su, sn, y) => [x + ux * hl * su + nx * hw * sn, y, z + uz * hl * su + nz * hw * sn];
+  const c = [P(-1, -1, y0), P(1, -1, y0), P(1, 1, y0), P(-1, 1, y0), P(-1, -1, y1), P(1, -1, y1), P(1, 1, y1), P(-1, 1, y1)];
+  const face = (q, n) => {
+    const [p0, p1, p2] = q, e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const cx = e1[1] * e2[2] - e1[2] * e2[1], cy = e1[2] * e2[0] - e1[0] * e2[2], cz = e1[0] * e2[1] - e1[1] * e2[0];
+    if (cx * n[0] + cy * n[1] + cz * n[2] < 0) q = [q[0], q[3], q[2], q[1]];
+    for (const k of [0, 1, 2, 0, 2, 3]) { B.pos.push(...q[k]); B.nor.push(...n); }
+  };
+  face([c[4], c[5], c[6], c[7]], [0, 1, 0]); face([c[0], c[1], c[2], c[3]], [0, -1, 0]);
+  face([c[0], c[1], c[5], c[4]], [-nx, 0, -nz]); face([c[3], c[2], c[6], c[7]], [nx, 0, nz]);
+  face([c[0], c[3], c[7], c[4]], [-ux, 0, -uz]); face([c[1], c[2], c[6], c[5]], [ux, 0, uz]);
+}
+function meshFromBoxes(B, mat) {
+  const T3 = window.THREE, g = new T3.BufferGeometry();
+  g.setAttribute('position', new T3.Float32BufferAttribute(B.pos, 3));
+  g.setAttribute('normal', new T3.Float32BufferAttribute(B.nor, 3));
+  return new T3.Mesh(g, mat);
+}
+// walls along every room edge, with door gaps (a lintel above each) and corners filled by running each piece half a thickness long
+function buildWalls(B, fl, elev, H, th, segsOut) {
+  const doors = map.items.filter(i => i.floor === fl && i.kind === 'door');
+  for (const [a, b] of wallSegs(fl)) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+    if (len < 1e-3) continue;
+    const ang = Math.atan2(dy, dx), ux = dx / len, uy = dy / len;
+    const cuts = [];
+    for (const d of doors) {
+      if (distSeg(d.x, d.y, a, b) > 0.25 || Math.abs(Math.sin(rad(d.rot) - ang)) > 0.3) continue;
+      const t = (d.x - a[0]) * ux + (d.y - a[1]) * uy;
+      cuts.push([clamp(t - d.w / 2, 0, len), clamp(t + d.w / 2, 0, len)]);
+    }
+    cuts.sort((p, q) => p[0] - q[0]);
+    const pieces = []; let s = 0;
+    for (const [c0, c1] of cuts) { if (c0 > s) pieces.push([s, c0, s === 0, false]); s = Math.max(s, c1); }
+    if (s < len) pieces.push([s, len, s === 0, true]);
+    for (let [p0, p1, startEnd, endEnd] of pieces) {
+      if (startEnd) p0 -= th / 2;
+      if (endEnd) p1 += th / 2;
+      if (p1 - p0 < 0.01) continue;
+      const m = (p0 + p1) / 2;
+      boxInto(B, a[0] + ux * m, a[1] + uy * m, ang, p1 - p0, th, elev, elev + H);
+      segsOut.push({ a: [a[0] + ux * p0, a[1] + uy * p0], b: [a[0] + ux * p1, a[1] + uy * p1], half: th / 2 });
+    }
+    if (H > DOOR_H + 0.05) for (const [c0, c1] of cuts) if (c1 - c0 > 0.01) { const m = (c0 + c1) / 2; boxInto(B, a[0] + ux * m, a[1] + uy * m, ang, c1 - c0, th, elev + DOOR_H, elev + H); }
+  }
+}
+function build3D(resetView) {
+  const T3 = window.THREE, dark = T.dark;
+  if (V3.scene) V3.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  const sc = new T3.Scene();
+  sc.background = new T3.Color(dark ? '#0f151b' : '#dde4ea');
+  sc.add(new T3.HemisphereLight(0xffffff, dark ? 0x30363d : 0x8d969f, dark ? 2.2 : 2.6));
+  const sun = new T3.DirectionalLight(0xffffff, dark ? 1.4 : 1.8); sun.position.set(0.4, 1, 0.25); sc.add(sun);
+  const mats = new Map(), mat = (color, side) => {
+    const k = color + (side || '');
+    if (!mats.has(k)) mats.set(k, new T3.MeshLambertMaterial({ color: new T3.Color(color), side: side === 'd' ? T3.DoubleSide : T3.FrontSide }));
+    return mats.get(k);
+  };
+  const S = v3s(), fi = floorIndex(), th = clamp(settings.roomLine, 0.15, 1);
+  const wallColor = dark ? '#5d6874' : '#c7ced6', floorBase = dark ? '#252d36' : '#eef1f4', ceilColor = dark ? '#2b333c' : '#d3d9df';
+  const shown = map.floors.filter((f, k) => V3.mode === 'walk' || V3.all || k <= fi);
+  V3.playerObjs = [];
+  let col = null;
+  // a 1 m grid on the ground, under everything
+  const all = itemsBounds(map.items) || { x0: -10, y0: -10, x1: 10, y1: 10 };
+  const size = Math.ceil(Math.max(all.x1 - all.x0, all.y1 - all.y0) + 30);
+  const grid = new T3.GridHelper(size, size, new T3.Color(T.major), new T3.Color(T.minor));
+  grid.position.set(Math.round((all.x0 + all.x1) / 2), floorElev(map.floors[0].id) - 0.03, Math.round((all.y0 + all.y1) / 2));
+  sc.add(grid);
+  for (const f of shown) {
+    const fl = f.id, elev = floorElev(fl), H = floorHt(f), here = fl === map.activeFloor;
+    const groups = floorGroups(fl), byColor = new Map(), ceil = [];
+    for (const g of groups) {
+      for (const fill of g.fills) { const c = mix(fill.color, floorBase, 0.55); if (!byColor.has(c)) byColor.set(c, []); byColor.get(c).push(...fill.mp); }
+      ceil.push(...g.walls);
+    }
+    for (const [c, mp] of byColor) {
+      const geo = new T3.ShapeGeometry(shapesFrom(mp, true)); geo.rotateX(-Math.PI / 2);
+      const m = new T3.Mesh(geo, mat(c)); m.position.y = elev + 0.01; sc.add(m);
+    }
+    if (S.ceil && ceil.length) {
+      const geo = new T3.ShapeGeometry(shapesFrom(ceil, false)); geo.rotateX(Math.PI / 2);
+      const m = new T3.Mesh(geo, new T3.MeshBasicMaterial({ color: new T3.Color(ceilColor) })); m.position.y = elev + H - 0.005; sc.add(m);
+    }
+    const B = { pos: [], nor: [] }, segs = [];
+    buildWalls(B, fl, elev, H, th, segs);
+    if (B.pos.length) sc.add(meshFromBoxes(B, mat(wallColor)));
+    // door thresholds: amber where the door can lock, grey where it's always open
+    for (const d of map.items) if (d.floor === fl && d.kind === 'door') {
+      const D = { pos: [], nor: [] };
+      boxInto(D, d.x, d.y, rad(d.rot), d.w, th + 0.12, elev, elev + 0.03);
+      sc.add(meshFromBoxes(D, mat(d.lockMode === 'open' ? (dark ? '#6b7682' : '#9aa4ae') : T.warn)));
+    }
+    // solids, and the solid parts of custom shapes
+    const supports = [];
+    const solid = (ring, color, s3) => {
+      const base = s3.mode === 'plat' ? elev - PLAT_T : elev, h = s3.mode === 'plat' ? PLAT_T : s3.ht;
+      const geo = new T3.ExtrudeGeometry(shapesFrom([[ring]], true), { depth: h, bevelEnabled: false }); geo.rotateX(-Math.PI / 2);
+      const m = new T3.Mesh(geo, mat(color)); m.position.y = base; sc.add(m);
+      supports.push({ ring, top: base + h, wall: s3.mode === 'block' && s3.ht > STEP_UP });
+    };
+    for (const it of map.items) {
+      if (it.floor !== fl) continue;
+      if ((it.kind === 'circle' || it.kind === 'poly') && it.style !== 'room') solid(worldRing(it), it.color, solid3D(it));
+      else if (it.kind === 'custom') { const m = masterOf(it.ref); if (m) { const s3 = solid3D(it); for (const p of m.parts) if (p.style !== 'room') solid(partRing(it, p, m), p.color, s3); } }
+    }
+    const standAt = (x, y) => supports.reduce((z, s) => pointInPoly(x, y, s.ring) ? Math.max(z, s.top) : z, elev);
+    // characters and pickups
+    for (const it of map.items) {
+      if (it.floor !== fl) continue;
+      if (it.kind === 'enemy') {
+        const m = new T3.Mesh(new T3.CapsuleGeometry(0.35, 1.1, 4, 14), mat(typeOf(it.type).color));
+        m.position.set(it.x, standAt(it.x, it.y) + 0.9, it.y); sc.add(m);
+      } else if (it.kind === 'player') {
+        const g = new T3.Group(), body = new T3.Mesh(new T3.CapsuleGeometry(0.35, 1.1, 4, 14), mat(PLAYER_COLOR));
+        body.position.y = 0.9;
+        const nose = new T3.Mesh(new T3.ConeGeometry(0.16, 0.5, 14), mat(PLAYER_COLOR)); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 1.35, -0.55);
+        g.add(body, nose); g.position.set(it.x, standAt(it.x, it.y), it.y); g.rotation.y = -rad(it.rot);
+        g.visible = V3.mode !== 'walk'; V3.playerObjs.push(g); sc.add(g);
+      } else if (it.kind === 'symbol') {
+        const m = new T3.Mesh(new T3.OctahedronGeometry(0.3), mat(symbolOf(it.sym).color));
+        m.position.set(it.x, standAt(it.x, it.y) + 1, it.y); sc.add(m);
+      }
+    }
+    if (here) {
+      for (const s of supports) if (s.wall) s.ring.forEach((p, k) => segs.push({ a: p, b: s.ring[(k + 1) % s.ring.length], half: 0 }));
+      col = { segs, supports: supports.filter(s => !s.wall), elev };
+    }
+  }
+  V3.scene = sc;
+  V3.col = col || { segs: [], supports: [], elev: floorElev(map.activeFloor) };
+  if (resetView) {
+    const b = itemsBounds(map.items.filter(i => i.floor === map.activeFloor)) || all, O = V3.orbit;
+    O.tx = (b.x0 + b.x1) / 2; O.tz = (b.y0 + b.y1) / 2; O.ty = floorElev(map.activeFloor);
+    // far enough back that the floor fits the narrower side of the screen
+    const span = Math.max(b.x1 - b.x0, b.y1 - b.y0, 6), fit = Math.tan(rad(V3.cam.fov / 2)) * Math.min(1, V3.cam.aspect);
+    O.dist = clamp(span / 2 / fit * 1.1 + 2, 8, 800); O.yaw = 0.35; O.pitch = 0.85;
+    walkReset();
+  }
+  V3.dirty = true;
+}
+// walking starts at the floor's player marker, facing its way, or in the middle of the floor
+function walkReset() {
+  const W = V3.walk, p = map.items.find(i => i.floor === map.activeFloor && i.kind === 'player');
+  if (p) { W.x = p.x; W.y = p.y; W.yaw = rad(p.rot); }
+  else { const b = itemsBounds(map.items.filter(i => i.floor === map.activeFloor)) || { x0: 0, y0: 0, x1: 0, y1: 0 }; W.x = (b.x0 + b.x1) / 2; W.y = (b.y0 + b.y1) / 2; W.yaw = 0; }
+  W.pitch = 0; W.floor = map.activeFloor;
+  W.z = V3.col ? standHeight(W.x, W.y) : floorElev(map.activeFloor);
+  V3.dirty = true;
+}
+const standHeight = (x, y) => V3.col.supports.reduce((z, s) => s.top - V3.col.elev <= STEP_UP && pointInPoly(x, y, s.ring) ? Math.max(z, s.top) : z, V3.col.elev);
+function stepWalk(dt) {
+  const W = V3.walk, k = V3.keys, S = V3.stick;
+  let f = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0);
+  let r = (k.has('d') ? 1 : 0) - (k.has('a') ? 1 : 0);
+  const turn = (k.has('arrowright') ? 1 : 0) - (k.has('arrowleft') ? 1 : 0);
+  if (S) { r += S.vx; f -= S.vy; }
+  let moved = false;
+  if (turn) { W.yaw += turn * 2.2 * dt; moved = true; }
+  const len = Math.hypot(f, r);
+  if (len > 0.02) {
+    if (len > 1) { f /= len; r /= len; }
+    const sp = v3s().speed * dt, sy = Math.sin(W.yaw), cy = Math.cos(W.yaw);
+    W.x += (sy * f + cy * r) * sp; W.y += (-cy * f + sy * r) * sp;
+    collide3D(W); moved = true;
+  }
+  const want = standHeight(W.x, W.y);
+  if (Math.abs(W.z - want) > 0.002) { W.z += (want - W.z) * Math.min(1, dt * 12); moved = true; }
+  return moved;
+}
+// push the walker out of walls and tall blocks, keeping its radius clear
+function collide3D(W) {
+  const r = v3s().rad;
+  for (let n = 0; n < 3; n++) for (const s of V3.col.segs) {
+    const [ax, ay] = s.a, dx = s.b[0] - ax, dy = s.b[1] - ay, L = dx * dx + dy * dy;
+    const t = L ? clamp(((W.x - ax) * dx + (W.y - ay) * dy) / L, 0, 1) : 0, px = ax + t * dx, py = ay + t * dy;
+    const ex = W.x - px, ey = W.y - py, d = Math.hypot(ex, ey), min = r + s.half;
+    if (d < min && d > 1e-6) { W.x = px + ex / d * min; W.y = py + ey / d * min; }
+  }
+}
+function panOrbit(dx, dy) {
+  const O = V3.orbit, k = O.dist / Math.max(200, $('#v3d').clientHeight) * 1.1, c = Math.cos(O.yaw), s = Math.sin(O.yaw);
+  O.tx += (-c * dx - s * dy) * k; O.tz += (s * dx - c * dy) * k;
+}
+function pinchInfo() {
+  const [a, b] = [...V3.ptrs.values()];
+  return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) } : null;
+}
+function endStick() { V3.stick = null; const el = $('#v3dstick'); if (el) el.hidden = true; }
+function bind3DInput(cv) {
+  const P = V3.ptrs, stick = $('#v3dstick');
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('pointerdown', e => {
+    try { cv.setPointerCapture(e.pointerId); } catch {}
+    const box = cv.getBoundingClientRect();
+    if (V3.mode === 'walk' && e.pointerType !== 'mouse' && !V3.stick && e.clientX - box.left < box.width * 0.45) {
+      V3.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY, vx: 0, vy: 0 };
+      stick.hidden = false; stick.style.left = (e.clientX - box.left) + 'px'; stick.style.top = (e.clientY - box.top) + 'px'; stick.firstElementChild.style.transform = '';
+      return;
+    }
+    P.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, mouse: e.pointerType === 'mouse' });
+    V3.pinch = P.size === 2 ? pinchInfo() : null;
+  });
+  cv.addEventListener('pointermove', e => {
+    const S = V3.stick;
+    if (S && e.pointerId === S.id) {
+      const dx = e.clientX - S.x0, dy = e.clientY - S.y0, d = Math.hypot(dx, dy), k = d > 48 ? 48 / d : 1;
+      S.vx = dx * k / 48; S.vy = dy * k / 48;
+      stick.firstElementChild.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+      return;
+    }
+    const p = P.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (V3.mode === 'walk') { V3.walk.yaw += dx * 0.005; V3.walk.pitch = clamp(V3.walk.pitch - dy * 0.005, -1.4, 1.4); }
+    else if (P.size >= 2) { const q = pinchInfo(), o = V3.pinch; if (o && q) { V3.orbit.dist = clamp(V3.orbit.dist * o.d / q.d, 2, 800); panOrbit(q.x - o.x, q.y - o.y); } V3.pinch = q; }
+    else if (p.mouse && (p.btn === 1 || p.btn === 2 || e.shiftKey)) panOrbit(dx, dy);
+    else { V3.orbit.yaw -= dx * 0.008; V3.orbit.pitch = clamp(V3.orbit.pitch + dy * 0.006, 0.08, 1.52); }
+    V3.dirty = true;
+  });
+  const end = e => { if (V3.stick && e.pointerId === V3.stick.id) endStick(); P.delete(e.pointerId); V3.pinch = P.size === 2 ? pinchInfo() : null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('wheel', e => { e.preventDefault(); if (V3.mode === 'orbit') { V3.orbit.dist = clamp(V3.orbit.dist * Math.exp(e.deltaY * 0.0012), 2, 800); V3.dirty = true; } }, { passive: false });
+}
+$('#view3d').addEventListener('click', () => V3.open ? close3D() : open3D());
+document.querySelectorAll('[data-v3]').forEach(b => b.addEventListener('click', () => set3DMode(b.dataset.v3)));
+$('#v3dall').addEventListener('click', () => { V3.all = !V3.all; $('#v3dall').setAttribute('aria-pressed', String(V3.all)); V3.stale = V3.stale || true; });
+$('#v3dreset').addEventListener('click', () => { V3.stale = 'reset'; });
+
 /* ---------- shape builder: the editor on a scratch map whose shapes become a master ---------- */
 async function openBuilder(masterId, back) {
   if (builder) return;
@@ -3094,6 +3484,14 @@ function buildSettings(body) {
       <div class="btnrow"><button class="btn" id="s-pdef">Reset player to defaults</button></div>
     </section>
     <section>
+      <h3>3D view</h3>
+      <div class="stats">${[['wall', 'Floor height (m)', 0.5], ['eye', 'Eye height (m)', 0.05], ['rad', 'Player radius (m)', 0.05], ['speed', 'Walk speed (m/s)', 0.5]]
+        .map(([k, l, st]) => `<label>${l}<input type="number" inputmode="decimal" step="${st}" data-v3s="${k}" value="${v3s()[k]}"></label>`).join('')}</div>
+      <label class="toggle"><input type="checkbox" id="s-ceil"${v3s().ceil ? ' checked' : ''}>Ceilings (they only show from below, so Orbit still sees in)</label>
+      <p>Floor height is the default for every floor; give a floor its own height in Floors. Set eye height and radius to match your Unreal character so Walk feels the same size.</p>
+      <div class="btnrow"><button class="btn" id="s-v3def">Reset 3D to defaults</button></div>
+    </section>
+    <section>
       <h3>Floors</h3>
       <label class="toggle"><input type="checkbox" id="s-below"${settings.below ? ' checked' : ''}>Show the floor below, faded</label>
     </section>
@@ -3122,6 +3520,14 @@ function buildSettings(body) {
     P[k] = Number.isFinite(v) ? clamp(v, ...LIM[k]) : DEFAULT_PLAYER[k];
     settings.player = P; saveSettings(); el.value = P[k];
   }));
+  const LIM3 = { wall: [2, 20], eye: [0.5, 3], rad: [0.1, 1.5], speed: [0.5, 20] };
+  body.querySelectorAll('[data-v3s]').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.v3s, v = parseFloat(el.value), V = v3s();
+    V[k] = Number.isFinite(v) ? clamp(v, ...LIM3[k]) : DEF_V3[k];
+    settings.v3 = V; saveSettings(); el.value = V[k];
+  }));
+  body.querySelector('#s-ceil').addEventListener('change', e => { settings.v3 = { ...v3s(), ceil: e.target.checked }; saveSettings(); });
+  body.querySelector('#s-v3def').addEventListener('click', () => { settings.v3 = { ...DEF_V3 }; saveSettings(); refreshSheet(); toast('3D settings reset to the defaults.'); });
   body.querySelector('#s-pdef').addEventListener('click', () => { settings.player = { ...DEFAULT_PLAYER }; settings.aggr = 1; saveSettings(); refreshSheet(); toast('Simulated player reset to the defaults.'); });
 }
 
@@ -3134,6 +3540,7 @@ async function openMapById(id) {
   return true;
 }
 function openMap(m) {
+  if (V3.open) close3D();
   absorbTypes(m); absorbLibrary(m); syncInstances(m); instCache.clear();
   map = m; history = []; future = []; clearSel(); tool = 'select'; edits = 0;
   roomCache.clear();
@@ -3314,7 +3721,7 @@ function exportPNG() {
 }
 
 /* Floors */
-function switchFloor(id) { map.activeFloor = id; clearSel(); renderAll(); if (!map.sample) LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
+function switchFloor(id) { map.activeFloor = id; clearSel(); renderAll(); if (V3.open) V3.stale = 'reset'; if (!map.sample) LS.set('mm2.map.' + map.id, JSON.stringify(map)); }
 $('#floorup').addEventListener('click', () => { const i = floorIndex(); if (i < map.floors.length - 1) switchFloor(map.floors[i + 1].id); });
 $('#floordown').addEventListener('click', () => { const i = floorIndex(); if (i > 0) switchFloor(map.floors[i - 1].id); });
 $('#floorname').addEventListener('click', () => openSheet('Floors', buildFloors));
@@ -3322,12 +3729,13 @@ function buildFloors(body) {
   const rows = [...map.floors].reverse();
   body.innerHTML = `
     <section>
-      <p>Top floor first. The floor below the one you are on shows faintly so you can line things up.</p>
+      <p>Top floor first. The floor below the one you are on shows faintly so you can line things up. H is the floor's height in the 3D view; leave it empty to use the default from Settings (${v3s().wall} m).</p>
       <div class="btnrow"><button class="btn" data-f="above">${ic('plus')}Add floor on top</button><button class="btn" data-f="below">${ic('plus')}Add basement</button></div>
       <div class="list">${rows.map(f => {
         const n = map.items.filter(it => it.floor === f.id).length, cur = f.id === map.activeFloor;
         return `<div class="lrow${cur ? ' current' : ''}">
           <div class="grow"><input class="field" data-fname="${esc(f.id)}" value="${esc(f.name)}" maxlength="30" aria-label="Floor name"></div>
+          <label class="num" title="Height in the 3D view"><span>H</span><input data-fht="${esc(f.id)}" type="number" inputmode="decimal" step="0.5" style="width:46px" value="${f.ht || ''}" placeholder="${v3s().wall}" aria-label="Floor height in metres"></label>
           <span class="s muted mono" style="font-size:12px">${n}</span>
           ${cur ? '<span class="pill">Here</span>' : `<button class="btn" data-go="${esc(f.id)}">Go</button>`}
           <button class="btn danger" data-delfloor="${esc(f.id)}" aria-label="Delete floor"${map.floors.length === 1 ? ' disabled' : ''}>${ic('del')}</button>
@@ -3343,6 +3751,12 @@ function buildFloors(body) {
   body.querySelectorAll('[data-fname]').forEach(inp => inp.addEventListener('change', () => {
     const f = map.floors.find(x => x.id === inp.dataset.fname), v = inp.value.trim().slice(0, 30);
     if (f && v && v !== f.name) mutate(() => { f.name = v; }); else inp.value = f ? f.name : '';
+  }));
+  body.querySelectorAll('[data-fht]').forEach(inp => inp.addEventListener('change', () => {
+    const f = map.floors.find(x => x.id === inp.dataset.fht), v = parseFloat(inp.value);
+    if (!f) return;
+    mutate(() => { if (Number.isFinite(v)) f.ht = clamp(round2(v), 2, 20); else delete f.ht; });
+    inp.value = f.ht || '';
   }));
   body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { switchFloor(b.dataset.go); refreshSheet(); }));
   body.querySelectorAll('[data-delfloor]').forEach(b => b.addEventListener('click', () => {
@@ -3374,10 +3788,17 @@ $('#lockmap').addEventListener('click', () => {
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
 let spaceHeld = false;
-document.addEventListener('keyup', e => { if (e.key === ' ') spaceHeld = false; });
-window.addEventListener('blur', () => { spaceHeld = false; });
+const WALK_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+document.addEventListener('keyup', e => { if (e.key === ' ') spaceHeld = false; V3.keys.delete(e.key.toLowerCase()); });
+window.addEventListener('blur', () => { spaceHeld = false; V3.keys.clear(); });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
+  if (V3.open && !sheetEl && !pageBuild && !menuOpen()) {
+    const k = e.key.toLowerCase();
+    if (k === 'escape') close3D();
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && V3.mode === 'walk' && WALK_KEYS.includes(k)) { e.preventDefault(); V3.keys.add(k); }
+    return;
+  }
   if (Sim.active) { if (e.key === 'Escape') simStop(); else if (e.key === ' ') { e.preventDefault(); $('#simplay').click(); } return; }
   if (e.key === ' ') { e.preventDefault(); spaceHeld = true; return; }
   if (e.key === 'Escape') { if (sheetEl) closeSheet(); else if (pageBuild) closePage(); else if (!menuOpen()) { clearSel(); setTool('select'); } return; }

@@ -2,15 +2,17 @@
 """Build the installable web app in docs/ from map-designer.html.
 
 map-designer.html is the one source for both the Claude artifact and the installed app.
-Run this after changing it:  python3 tools/build_pwa.py
+Publish a milestone:  python3 tools/build_pwa.py            (the installed app updates when this is pushed)
+Test build elsewhere:  python3 tools/build_pwa.py /some/dir   (leaves docs/ alone)
 GitHub Pages serves docs/ at https://gamesbyaaron.github.io/Map-Maker-2/
 Saved versions in snapshots/ (made with tools/snapshot.py) are copied in unchanged, e.g. .../Map-Maker-2/v1/
 """
-import hashlib, pathlib, shutil
+import hashlib, pathlib, shutil, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC, PWA, OUT, SNAPS = ROOT / 'map-designer.html', ROOT / 'pwa', ROOT / 'docs', ROOT / 'snapshots'
 CDN = 'https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js'
+THREE = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js'   # loaded when the 3D view first opens
 
 HEAD = """<!doctype html>
 <html lang="en">
@@ -66,9 +68,13 @@ if ('serviceWorker' in navigator) {
 """
 
 def main():
+    global OUT
+    if len(sys.argv) > 1: OUT = pathlib.Path(sys.argv[1]).resolve()
     app = SRC.read_text()
     assert CDN in app, 'polygon-clipping script tag not found'
     app = app.replace(CDN, 'polygon-clipping.umd.min.js')
+    assert THREE in app, 'three.js URL not found'
+    app = app.replace(THREE, 'three.min.js')
     page = HEAD + app + TAIL
     if OUT.exists():
         for p in OUT.iterdir():
@@ -76,7 +82,7 @@ def main():
                 p.unlink() if p.is_file() else shutil.rmtree(p)
     OUT.mkdir(exist_ok=True)
     (OUT / 'index.html').write_text(page)
-    for name in ['manifest.webmanifest', 'polygon-clipping.umd.min.js', 'polygon-clipping.LICENSE.md']:
+    for name in ['manifest.webmanifest', 'polygon-clipping.umd.min.js', 'polygon-clipping.LICENSE.md', 'three.min.js', 'three.LICENSE']:
         shutil.copy(PWA / name, OUT / name)
     icons = OUT / 'icons'
     if icons.exists(): shutil.rmtree(icons)
@@ -90,7 +96,7 @@ def main():
     (OUT / '.nojekyll').write_text('')
     for snap in sorted(SNAPS.glob('v*')):
         shutil.copytree(snap, OUT / snap.name)
-    print(f'built docs/ (version {version})')
+    print(f'built {OUT} (version {version})')
 
 if __name__ == '__main__':
     main()

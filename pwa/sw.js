@@ -1,7 +1,7 @@
 // Offline support for the installed app. The build stamps a new version into this file every time the
 // app changes, which makes the browser install the new version and the page offer "Update ready".
 const VERSION = '__VERSION__';
-const CORE = ['./', 'index.html', 'manifest.webmanifest', 'polygon-clipping.umd.min.js',
+const CORE = ['./', 'index.html', 'manifest.webmanifest', 'polygon-clipping.umd.min.js', 'three.min.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'];
 
 self.addEventListener('install', e => {
