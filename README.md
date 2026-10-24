@@ -18,7 +18,7 @@ python3 tools/make_icons.py     # only if the icon design changes
 python3 tools/snapshot.py v2    # freeze the current build as a saved version (after build_pwa.py), then build again
 ```
 
-`snapshots/` holds the frozen versions; `build_pwa.py` copies them into `docs/` unchanged. Git tag `v1` marks the v1 source.
+`snapshots/` holds the frozen versions; `build_pwa.py` copies them into `docs/` unchanged.
 
 `pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping library (MIT).
 GitHub Pages serves `docs/` (Settings → Pages → Deploy from a branch → this branch, `/docs`).
