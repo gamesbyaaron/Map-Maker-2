@@ -5,6 +5,7 @@ A top-down FPS map designer for phones, used to block out levels before rebuildi
 The whole app is one file: `map-designer.html`. It runs two ways:
 
 - **Installed app (PWA):** https://gamesbyaaron.github.io/Map-Maker-2/ — install it from Chrome (phone: ⋮ → Install app; desktop: the install icon in the address bar). Works offline, saves maps on the device, updates itself.
+- **Saved versions:** frozen copies that never change, each its own app with a grey icon and its own saved maps. v1: https://gamesbyaaron.github.io/Map-Maker-2/v1/
 - **Claude artifact:** the same file published as a private Claude page, saving to the Claude account.
 
 ### Building the installed app
@@ -14,7 +15,10 @@ The whole app is one file: `map-designer.html`. It runs two ways:
 ```
 python3 tools/build_pwa.py      # rebuilds docs/ and stamps a new version so installed apps offer "Update ready"
 python3 tools/make_icons.py     # only if the icon design changes
+python3 tools/snapshot.py v2    # freeze the current build as a saved version (after build_pwa.py), then build again
 ```
+
+`snapshots/` holds the frozen versions; `build_pwa.py` copies them into `docs/` unchanged. Git tag `v1` marks the v1 source.
 
 `pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping library (MIT).
 GitHub Pages serves `docs/` (Settings → Pages → Deploy from a branch → this branch, `/docs`).

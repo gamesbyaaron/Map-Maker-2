@@ -1,0 +1,37 @@
+{
+  "name": "FPS Map Designer v1",
+  "short_name": "Map Designer v1",
+  "description": "Block out FPS levels on a 1 m grid: rooms, doors, enemies, floors and simulated playthroughs.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0c1117",
+  "theme_color": "#141b23",
+  "categories": [
+    "productivity",
+    "games",
+    "design"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -4,11 +4,12 @@
 map-designer.html is the one source for both the Claude artifact and the installed app.
 Run this after changing it:  python3 tools/build_pwa.py
 GitHub Pages serves docs/ at https://gamesbyaaron.github.io/Map-Maker-2/
+Saved versions in snapshots/ (made with tools/snapshot.py) are copied in unchanged, e.g. .../Map-Maker-2/v1/
 """
 import hashlib, pathlib, shutil
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SRC, PWA, OUT = ROOT / 'map-designer.html', ROOT / 'pwa', ROOT / 'docs'
+SRC, PWA, OUT, SNAPS = ROOT / 'map-designer.html', ROOT / 'pwa', ROOT / 'docs', ROOT / 'snapshots'
 CDN = 'https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js'
 
 HEAD = """<!doctype html>
@@ -87,6 +88,8 @@ def main():
     version = digest.hexdigest()[:12]
     (OUT / 'sw.js').write_text((PWA / 'sw.js').read_text().replace('__VERSION__', version))
     (OUT / '.nojekyll').write_text('')
+    for snap in sorted(SNAPS.glob('v*')):
+        shutil.copytree(snap, OUT / snap.name)
     print(f'built docs/ (version {version})')
 
 if __name__ == '__main__':
