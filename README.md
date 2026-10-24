@@ -24,7 +24,11 @@ python3 tools/snapshot.py v2    # freeze the current build as a saved version (a
 `pwa/` holds the service worker template, manifest, icons and the vendored polygon-clipping and three.js libraries (both MIT).
 GitHub Pages serves `docs/` (Settings → Pages → Deploy from a branch → this branch, `/docs`).
 
-## What it does (v8)
+## What it does (v9)
+
+- 3D simulation: the cube button in the sim bar watches the same run in 3D. Cameras: POV (default, with a simple gun that kicks and flashes when the player fires), Follow, and Overview. Enemies flash when hit, lunge to melee, tip over when killed; doors slide shut, glow red while locked and green as they open; a HUD shows health, kills, time and the current arena.
+- Timeline: scrub through any run, with marks for arena locks, clears, big hits and the end; tap a mark to jump there. Speed ½×–4×.
+- Clips: the record button saves what's on screen, HUD included, as a video (up to 60 s); on a Run 10× replay it records the whole run.
 
 - 3D view (cube button in the top bar): Orbit around the map, or Walk through it at eye height with a thumbstick (WASD on a computer) and real collisions. Rooms get walls, ceilings and door gaps; solids become blocks or platforms with their own height; floors stack at their own heights. Eye height, radius, walk speed and default floor height are in Settings.
 

@@ -296,7 +296,7 @@ i b { font-weight: 600; }
 .simfab svg { fill: currentColor; stroke: none; width: 16px; height: 16px; }
 .has-bar .simfab, .builder-ui .simfab, .sim-ui .simfab { display: none; }
 .simbar {
-  position: absolute; left: 8px; right: 8px; bottom: 8px; margin-inline: auto; max-width: 560px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: absolute; z-index: 7; left: 8px; right: 8px; bottom: 8px; margin-inline: auto; max-width: 560px; display: grid; gap: 6px;
   padding: 8px 8px 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
 }
 .simbar .grow { flex: 1; min-width: 130px; display: flex; flex-direction: column; }
@@ -305,7 +305,7 @@ i b { font-weight: 600; }
 .simbar .grow span { font: 500 12px/1.3 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 #simspeed, #simbatch { font-size: 14px; font-weight: 600; }
 .simres {
-  position: absolute; left: 8px; right: 8px; bottom: 80px; margin-inline: auto; max-width: 560px; max-height: calc(100% - 100px); overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; z-index: 7; left: 8px; right: 8px; bottom: 112px; margin-inline: auto; max-width: 560px; max-height: calc(100% - 100px); overflow-y: auto; overscroll-behavior: contain;
   display: grid; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
 }
 .simres .res-head { display: flex; align-items: center; gap: 8px; }
@@ -337,12 +337,27 @@ i b { font-weight: 600; }
 .v3d-top .seg button { padding: 8px 14px; font-weight: 600; }
 .smallbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .v3d-help {
-  position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);
+  position: absolute; left: 50%; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);
   padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); text-align: center; pointer-events: none;
 }
 .stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 28%, transparent); background: color-mix(in srgb, var(--surface) 30%, transparent); pointer-events: none; }
 .stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: var(--shadow); }
-.v3d-ui .dock, .v3d-ui .bar, .v3d-ui .simfab, .v3d-ui .hint, .v3d-ui .scale, .v3d-ui #lockmap, .v3d-ui #undo, .v3d-ui #redo { display: none !important; }
+.simrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.simrow.ctl { justify-content: space-between; }
+#simcam { width: auto; padding: 0 10px; font-size: 13px; font-weight: 600; }
+#simrec { color: var(--danger); }
+#simrec.rec { width: auto; padding: 0 12px; background: var(--danger); color: #fff; border-color: transparent; font: 600 13px var(--font-mono); gap: 6px; display: flex; }
+.simtl { position: relative; padding-top: 12px; }
+.simtl[hidden] { display: none; }
+.simtl input { width: 100%; height: 22px; margin: 0; accent-color: var(--accent); }
+.simmarks { position: absolute; left: 8px; right: 8px; top: 0; height: 12px; }
+.simmarks button { position: absolute; top: 0; width: 12px; height: 12px; margin-left: -6px; padding: 0; border-radius: 50%; border: 2px solid var(--surface); background: var(--muted); }
+.simmarks .lock { background: var(--danger); } .simmarks .clear { background: var(--ok); } .simmarks .hit { background: var(--warn); }
+.simmarks .end { border-radius: 2px; background: var(--fg); }
+.simhud { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sim3d .v3d-top, .sim3d .v3d-help { display: none !important; }
+.v3d-ui .simfab { z-index: 6; }
+.v3d-ui .dock, .v3d-ui .bar, .v3d-ui .hint, .v3d-ui .scale, .v3d-ui #lockmap, .v3d-ui #undo, .v3d-ui #redo { display: none !important; }
 .v3d-ui .floors { z-index: 6; }
 .sim-ui #view3d, .builder-ui #view3d { display: none !important; }
 .toast {
@@ -418,15 +433,27 @@ i b { font-weight: 600; }
       <button class="smallbtn" id="v3dreset">Reset view</button>
     </div>
     <div class="v3d-help" id="v3dhelp"></div>
+    <canvas class="simhud" id="simhud" hidden></canvas>
     <div class="stick" id="v3dstick" hidden><i></i></div>
   </div>
   <div class="simbar" id="simbar" hidden>
-    <div class="grow"><strong id="simstate">Running</strong><span id="simsub">0:00</span></div>
-    <button class="iconbtn" id="simrestart" aria-label="Restart"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
-    <button class="iconbtn" id="simplay" aria-label="Pause"><svg viewBox="0 0 24 24"><path id="simplayicon" d="M8 5v14M16 5v14"/></svg></button>
-    <button class="iconbtn mono" id="simspeed" aria-label="Playback speed">1×</button>
-    <button class="iconbtn mono" id="simbatch" aria-label="Run 10 times">10×</button>
-    <button class="iconbtn" id="simclose" aria-label="Back to editing"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="simrow">
+      <div class="grow"><strong id="simstate">Running</strong><span id="simsub">0:00</span></div>
+      <button class="iconbtn" id="sim3d" aria-label="Watch in 3D" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></button>
+      <button class="iconbtn mono" id="simcam" aria-label="Camera" hidden>POV</button>
+      <button class="iconbtn" id="simrec" aria-label="Record a clip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+    <div class="simtl" id="simtl">
+      <div class="simmarks" id="simmarks"></div>
+      <input type="range" id="simscrub" min="0" max="1000" step="1" value="0" aria-label="Timeline">
+    </div>
+    <div class="simrow ctl">
+      <button class="iconbtn" id="simrestart" aria-label="Restart"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
+      <button class="iconbtn" id="simplay" aria-label="Pause"><svg viewBox="0 0 24 24"><path id="simplayicon" d="M8 5v14M16 5v14"/></svg></button>
+      <button class="iconbtn mono" id="simspeed" aria-label="Playback speed">1×</button>
+      <button class="iconbtn mono" id="simbatch" aria-label="Run 10 times">10×</button>
+      <button class="iconbtn" id="simclose" aria-label="Back to editing"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
   </div>
 </main>
 
@@ -2390,12 +2417,13 @@ function simReset(seed) {
   Object.assign(Sim, {
     seed, rand: rnd, P, aggr: settings.aggr ?? 1, t: 0, acc: 0, next: 0, over: null, fx: [], proj: [], trail: [], msg: '', msgT: 0,
     lockRoom: -1, stuckT: 0, goal: -1, goalKind: '', dmgTaken: 0, dmgBy: {}, roomLog: [], known: new Map(), heat: new Float32Array(W.grid.nx * W.grid.ny),
+    events: [], hitWin: [], lastHitEv: -9,
     obj: obj ? { x: obj.x, y: obj.y, cell: cellAt(obj.x, obj.y), name: symbolOf(obj.sym).name } : null,
-    player: { x: pl.x, y: pl.y, hp: P.hp, cd: 0, face: rad(pl.rot || 0) - Math.PI / 2, side: rnd() < 0.5 ? 1 : -1, sideT: 0 },
+    player: { x: pl.x, y: pl.y, hp: P.hp, cd: 0, face: rad(pl.rot || 0) - Math.PI / 2, side: rnd() < 0.5 ? 1 : -1, sideT: 0, shotT: -9, hurtT: -9 },
     // each enemy belongs to the room it starts in, unless it's set to roam
     foes: items.filter(i => i.kind === 'enemy').map(f => {
       const t = typeOf(f.type), c = cellAt(f.x, f.y), home = f.roam ? -1 : c >= 0 && W.cellRoom[c] >= 0 ? W.cellRoom[c] : W.roomOf(f.x, f.y);
-      return { id: f.id, type: t, x: f.x, y: f.y, home, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false };
+      return { id: f.id, type: t, x: f.x, y: f.y, home, hp: t.hp, cd: rnd() / t.rate, alert: false, face: Math.PI / 2, dead: false, hitT: -9, atkT: -9 };
     }),
   });
   // arenas: rooms set to always lock, or (auto) rooms that enemies start in; corridors and empty rooms never lock
@@ -2409,26 +2437,46 @@ const newSeed = () => (Math.random() * 4294967296) >>> 0;
 function simOpen() {
   if (!simPrepare()) return;
   clearSel(); tool = 'select';
-  Sim.active = true;
+  Sim.active = true; Sim.v3 = V3.open && !!window.THREE; Sim.cam = 'pov';
   document.body.classList.add('sim-ui');
   $('#simbar').hidden = false;
   renderAll();
   simLive(newSeed(), null);
+  if (Sim.v3) { V3.dyn = null; V3.stale = 'sim'; }
+  sync3DOverlay();
   const players = map.items.filter(i => i.floor === map.activeFloor && i.kind === 'player').length;
   if (players > 1) simMsg('Simulating with the first player on this floor.');
 }
 // a watchable run: a fresh one, or run k of the last Run 10× replayed from its seed
 function simLive(seed, replay) {
+  // play the run through once at full speed first, so the timeline knows its length and where things happen
+  simReset(seed);
+  for (let n = 0; !Sim.over && n < SIM.maxTime / SIM.dt + 10; n++) simStep();
+  Sim.dur = Sim.over ? Sim.over.t : Sim.t; Sim.marks = Sim.events.slice(); Sim.marksKey = null;
   simReset(seed);
   Sim.mode = replay == null ? 'live' : 'replay'; Sim.replay = replay;
   Sim.playing = true; Sim.last = performance.now();
   $('#simres').hidden = true;
   if (!Sim.loop) { Sim.loop = true; requestAnimationFrame(simLoop); }
 }
+// jump to a moment: forward by stepping, backward by replaying from the start (every run is seeded, so it comes out the same)
+function simSeek(t) {
+  t = clamp(t, 0, Sim.dur || 0);
+  const wasOver = !!Sim.over;
+  if (t < Sim.t - 1e-6) simReset(Sim.seed);
+  for (let n = 0; Sim.t < t - 1e-6 && !Sim.over && n < SIM.maxTime / SIM.dt + 10; n++) simStep();
+  Sim.acc = 0;
+  if (Sim.seekPlay) { Sim.playing = !Sim.over; Sim.seekPlay = false; }
+  else if (Sim.over || wasOver) Sim.playing = false;
+}
 function simStop() {
+  recStop();
   Sim.active = false; Batch = Batch && Batch.done === Batch.n ? Batch : null;
   document.body.classList.remove('sim-ui');
   $('#simbar').hidden = true; $('#simres').hidden = true;
+  V3.dyn = null;
+  if (V3.open) V3.stale = V3.stale || true;
+  sync3DOverlay();
   renderAll();
 }
 const simMsg = (text, secs = 3) => { Sim.msg = text; Sim.msgT = Sim.t + secs; };
@@ -2463,7 +2511,7 @@ function simTick() {
     if (!inRoom(Sim.lockRoom).length) {
       openArena(Sim.lockRoom);
       const log = Sim.roomLog[Sim.roomLog.length - 1]; log.t1 = Sim.t; log.dmg = Sim.dmgTaken - log.dmg0;
-      simMsg(`${Sim.rooms[Sim.lockRoom].label} cleared. Doors open.`); Sim.lockRoom = -1;
+      simMsg(`${Sim.rooms[Sim.lockRoom].label} cleared. Doors open.`); Sim.events.push({ k: 'clear', t: Sim.t, label: `${Sim.rooms[Sim.lockRoom].label} cleared` }); Sim.lockRoom = -1;
     }
   } else if (pr >= 0 && Sim.arena[pr] && !inDoor) {
     // lock in once the player is fully inside, past every doorway of the arena
@@ -2473,6 +2521,7 @@ function simTick() {
       Sim.lockRoom = pr; here.forEach(f => { f.alert = true; f.asleep = false; });
       Sim.roomLog.push({ room: pr, t0: Sim.t, dmg0: Sim.dmgTaken });
       simMsg(`${Sim.rooms[pr].label} locked: clear ${here.length} ${here.length === 1 ? 'enemy' : 'enemies'}.`, 4);
+      Sim.events.push({ k: 'lock', t: Sim.t, label: `${Sim.rooms[pr].label} locked` });
     }
   }
   Sim.qlen = bfs(pc, Sim.dist, Sim.q);
@@ -2492,11 +2541,14 @@ function pickGoal() {
 }
 function hurtPlayer(dmg, type) {
   const p = Sim.player, c = cellAt(p.x, p.y);
-  p.hp -= dmg; Sim.dmgTaken += dmg;
+  p.hp -= dmg; Sim.dmgTaken += dmg; p.hurtT = Sim.t;
+  // a big hit: a quarter of the player's health gone within two seconds
+  Sim.hitWin.push([Sim.t, dmg]); Sim.hitWin = Sim.hitWin.filter(h => Sim.t - h[0] <= 2);
+  if (Sim.t - Sim.lastHitEv > 3 && Sim.hitWin.reduce((a, h) => a + h[1], 0) >= Sim.P.hp * 0.25) { Sim.lastHitEv = Sim.t; Sim.events.push({ k: 'hit', t: Sim.t, label: 'Big hit' }); }
   if (c >= 0) Sim.heat[c] += dmg;
   Sim.dmgBy[type.name] = (Sim.dmgBy[type.name] || 0) + dmg;
 }
-function hurtFoe(f, dmg) { f.hp -= dmg; f.alert = true; f.asleep = false; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; Sim.known.delete(f); } }
+function hurtFoe(f, dmg) { f.hp -= dmg; f.hitT = Sim.t; f.alert = true; f.asleep = false; if (f.hp <= 0) { f.dead = true; f.deadT = Sim.t; Sim.known.delete(f); } }
 function shotFx(x1, y1, x2, y2, hit, color) { const m = hit ? 0 : 1.6; Sim.fx.push({ k: 'shot', x1, y1, x2: x2 + (Sim.rand() - 0.5) * m, y2: y2 + (Sim.rand() - 0.5) * m, t: Sim.t, color }); }
 function playerAct(dt) {
   const p = Sim.player, P = Sim.P, a = Sim.aggr, rnd = Sim.rand;
@@ -2515,7 +2567,7 @@ function playerAct(dt) {
     const tgt = rushers[0] || [...vis].sort(byDist)[0], d = dist(tgt);
     p.face = Math.atan2(tgt.y - p.y, tgt.x - p.x);
     if (p.cd <= 0 && d <= reach) {
-      p.cd = 1 / P.rate;
+      p.cd = 1 / P.rate; p.shotT = Sim.t;
       const hit = rnd() < playerHit(P.acc, d, reach);
       shotFx(p.x, p.y, tgt.x, tgt.y, hit, PLAYER_COLOR);
       if (hit) hurtFoe(tgt, P.dmg);
@@ -2593,14 +2645,14 @@ function foeAct(f, dt) {
   f.face = Math.atan2(p.y - f.y, p.x - f.x);
   const step = T.speed * dt;
   if (T.attack === 'melee') {
-    if (d <= SIM.melee) { if (f.cd <= 0) { f.cd = 1 / T.rate; hurtPlayer(T.dmg, T); Sim.fx.push({ k: 'melee', x: p.x, y: p.y, t: Sim.t, color: T.color }); } }
+    if (d <= SIM.melee) { if (f.cd <= 0) { f.cd = 1 / T.rate; f.atkT = Sim.t; hurtPlayer(T.dmg, T); Sim.fx.push({ k: 'melee', x: p.x, y: p.y, t: Sim.t, color: T.color }); } }
     else if (sees && d < 2.5) moveToward(f, p.x, p.y, step);
     else descend(f, Sim.dist, step, -1, foeWalk);
     return;
   }
   if (sees && d <= T.range) {
     if (f.cd <= 0) {
-      f.cd = 1 / T.rate;
+      f.cd = 1 / T.rate; f.atkT = Sim.t;
       if (T.attack === 'hitscan') { const hit = rnd() < hitChance(T.acc, d, T.range); shotFx(f.x, f.y, p.x, p.y, hit, T.color); if (hit) hurtPlayer(T.dmg, T); }
       else {
         const ang = Math.atan2(p.y - f.y, p.x - f.x) + (1 - T.acc / 100) * 0.5 * (rnd() * 2 - 1);
@@ -2644,7 +2696,7 @@ function simStep() {
   projStep(dt);
   Sim.fx = Sim.fx.filter(e => Sim.t - e.t < 0.5);
   const p = Sim.player, left = Sim.foes.filter(f => !f.dead).length;
-  const end = result => { Sim.over = { result, t: Sim.t, hp: Math.max(0, p.hp), left }; Sim.playing = false; };
+  const end = result => { Sim.over = { result, t: Sim.t, hp: Math.max(0, p.hp), left }; Sim.playing = false; Sim.events.push({ k: 'end', t: Sim.t, label: RESULT_LABEL[result] }); };
   if (p.hp <= 0) end('dead');
   else if (Sim.obj ? Math.hypot(p.x - Sim.obj.x, p.y - Sim.obj.y) < 1.2 : !left) end(Sim.obj ? 'objective' : 'win');
   else if (Sim.t >= SIM.maxTime) end('time');
@@ -2653,12 +2705,14 @@ function simStep() {
 function simLoop(now) {
   if (!Sim.active) { Sim.loop = false; return; }
   const real = Math.min(0.1, (now - Sim.last) / 1000); Sim.last = now;
+  if (Sim.seekTo != null && (Sim.mode === 'live' || Sim.mode === 'replay')) { simSeek(Sim.seekTo); Sim.seekTo = null; }
   if ((Sim.mode === 'live' || Sim.mode === 'replay') && Sim.playing && !Sim.over) {
     Sim.acc += real * Sim.speed;
     let n = 0;
     while (Sim.acc >= SIM.dt && n < 80 && !Sim.over) { simStep(); Sim.acc -= SIM.dt; n++; }
   }
-  draw(); syncSimBar();
+  if (!sim3DOn()) { draw(); recFrame(); }
+  syncSimBar();
   requestAnimationFrame(simLoop);
 }
 
@@ -2740,7 +2794,32 @@ function syncSimBar() {
   const listMode = !(Sim.mode === 'live' || busy);
   if (batchBtn.dataset.mode !== String(listMode)) { batchBtn.dataset.mode = String(listMode); batchBtn.innerHTML = listMode ? '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>' : '10×'; }
   batchBtn.setAttribute('aria-label', Sim.mode === 'live' ? 'Run 10 times' : 'Show results');
-  $('#simspeed').textContent = Sim.speed + '×';
+  $('#simspeed').textContent = Sim.speed === 0.5 ? '½×' : Sim.speed + '×';
+  // 3D, camera, recording and the timeline
+  $('#sim3d').setAttribute('aria-pressed', String(!!Sim.v3));
+  $('#sim3d').setAttribute('aria-label', Sim.v3 ? 'Back to the 2D view' : 'Watch in 3D');
+  const camBtn = $('#simcam'), camLabel = SIM_CAMS.find(c => c[0] === Sim.cam)[1];
+  camBtn.hidden = !Sim.v3 || results || busy;
+  if (camBtn.textContent !== camLabel) { camBtn.textContent = camLabel; camBtn.setAttribute('aria-label', `Camera: ${camLabel}. Tap to switch.`); }
+  const rec = $('#simrec'), recText = Rec.on ? clock((performance.now() - Rec.t0) / 1000) : '';
+  rec.disabled = busy || results;
+  rec.classList.toggle('rec', Rec.on);
+  if (rec.dataset.t !== recText) {
+    rec.dataset.t = recText;
+    rec.innerHTML = Rec.on ? `<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/></svg>${recText}` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/></svg>';
+    rec.setAttribute('aria-label', Rec.on ? 'Stop recording' : Sim.mode === 'replay' ? 'Record this run as a clip' : 'Record a clip');
+  }
+  const tl = $('#simtl'), timed = !busy && !results && Sim.dur > 0;
+  tl.hidden = !timed;
+  if (timed) {
+    const scrub = $('#simscrub');
+    if (!Sim.scrubbing && Sim.seekTo == null) scrub.value = String(Math.round(Sim.t / Sim.dur * 1000));
+    const key = Sim.seed + ':' + Sim.dur;
+    if (Sim.marksKey !== key) {
+      Sim.marksKey = key;
+      $('#simmarks').innerHTML = Sim.marks.map(e => `<button class="${e.k === 'end' ? 'end' : e.k}" data-t="${e.t}" style="left:${(e.t / Sim.dur * 100).toFixed(2)}%" aria-label="${esc(e.label)} at ${clock(e.t)}" title="${esc(e.label)} · ${clock(e.t)}"></button>`).join('');
+    }
+  }
   let text = '';
   if (busy) { st.textContent = 'Running 10 simulations…'; st.className = ''; sub.textContent = `${Batch.done} of ${Batch.n} done`; }
   else if (results) {
@@ -2847,7 +2926,13 @@ $('#simfab').addEventListener('click', simOpen);
 $('#simclose').addEventListener('click', simStop);
 $('#simrestart').addEventListener('click', () => { if (Sim.mode === 'replay') simLive(Sim.seed, Sim.replay); else if (simPrepare()) simLive(newSeed(), null); });
 $('#simplay').addEventListener('click', () => { if (!Sim.over) { Sim.playing = !Sim.playing; Sim.last = performance.now(); } });
-$('#simspeed').addEventListener('click', () => { Sim.speed = Sim.speed === 1 ? 2 : Sim.speed === 2 ? 4 : 1; });
+$('#simspeed').addEventListener('click', () => { Sim.speed = { 1: 2, 2: 4, 4: 0.5, 0.5: 1 }[Sim.speed] || 1; });
+const scrubEl = $('#simscrub');
+scrubEl.addEventListener('pointerdown', () => { Sim.scrubbing = true; });
+scrubEl.addEventListener('input', () => { Sim.seekTo = +scrubEl.value / 1000 * (Sim.dur || 0); });
+scrubEl.addEventListener('change', () => { Sim.scrubbing = false; });
+// jump to just before a marked moment
+$('#simmarks').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) Sim.seekTo = Math.max(0, +b.dataset.t - 1.5); });
 $('#simbatch').addEventListener('click', () => { if (Sim.mode === 'live') runBatch(); else if (Batch && Batch.done === Batch.n) showResults(); });
 
 /* ---------- 3D view: the map raised into walls and blocks, to orbit around or walk through ----------
@@ -2886,22 +2971,21 @@ async function open3D() {
   try { await loadThree(); } catch { toast('The 3D view couldn’t load. It needs an internet connection the first time.'); return; }
   clearSel(); tool = 'select';
   V3.open = true; V3.walk.floor = null;
-  document.body.classList.add('v3d-ui'); $('#v3d').hidden = false;
   if (!V3.R) init3D();
+  sync3DOverlay();
   renderAll(); V3.stale = 'reset';
   set3DMode(V3.mode);
-  resize3D();
-  if (!V3.raf) { V3.last = performance.now(); V3.raf = requestAnimationFrame(loop3D); }
 }
 function close3D() {
-  V3.open = false; cancelAnimationFrame(V3.raf); V3.raf = 0;
+  V3.open = false;
   V3.keys.clear(); V3.ptrs.clear(); endStick();
-  document.body.classList.remove('v3d-ui'); $('#v3d').hidden = true;
+  sync3DOverlay();
   renderAll();
 }
 function init3D() {
   const T3 = window.THREE, cv = $('#v3dcanvas');
-  V3.R = new T3.WebGLRenderer({ canvas: cv, antialias: true });
+  V3.R = new T3.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });   // kept so clips can copy each frame
+  V3.R.autoClear = false;
   V3.R.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   V3.cam = new T3.PerspectiveCamera(65, 1, 0.05, 3000);
   new ResizeObserver(() => { if (V3.open) resize3D(); }).observe($('#v3d'));
@@ -2911,6 +2995,8 @@ function resize3D() {
   const el = $('#v3d'), w = el.clientWidth, h = el.clientHeight;
   if (!w || !h) return;
   V3.R.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); V3.dirty = true;
+  const hud = $('#simhud'), r = Math.min(2, window.devicePixelRatio || 1);
+  hud.width = Math.round(w * r); hud.height = Math.round(h * r);
 }
 function set3DMode(m) {
   V3.mode = m;
@@ -2928,13 +3014,17 @@ function set3DMode(m) {
 function loop3D(now) {
   V3.raf = requestAnimationFrame(loop3D);
   const dt = Math.min(0.05, Math.max(0, (now - V3.last) / 1000)); V3.last = now;
-  if (V3.stale) { const reset = V3.stale === 'reset'; V3.stale = false; build3D(reset); }
+  if (V3.stale) {
+    const how = V3.stale; V3.stale = false;
+    if (sim3DOn()) buildSim3D(how === 'sim' || how === 'reset'); else build3D(how === 'reset');
+  }
   if (!V3.scene) return;
+  if (sim3DOn()) { stepSim3D(dt); if (V3.dyn) renderSim3D(); return; }
   if (V3.mode === 'walk' && stepWalk(dt)) V3.dirty = true;
   if (!V3.dirty) return;
   V3.dirty = false;
   placeCamera();
-  V3.R.render(V3.scene, V3.cam);
+  V3.R.clear(); V3.R.render(V3.scene, V3.cam);
 }
 function placeCamera() {
   const C = V3.cam;
@@ -3010,7 +3100,7 @@ function buildWalls(B, fl, elev, H, th, segsOut) {
     if (H > DOOR_H + 0.05) for (const [c0, c1] of cuts) if (c1 - c0 > 0.01) { const m = (c0 + c1) / 2; boxInto(B, a[0] + ux * m, a[1] + uy * m, ang, c1 - c0, th, elev + DOOR_H, elev + H); }
   }
 }
-function build3D(resetView) {
+function build3D(resetView, forSim) {
   const T3 = window.THREE, dark = T.dark;
   if (V3.scene) V3.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   const sc = new T3.Scene();
@@ -3024,7 +3114,7 @@ function build3D(resetView) {
   };
   const S = v3s(), fi = floorIndex(), th = clamp(settings.roomLine, 0.15, 1);
   const wallColor = dark ? '#5d6874' : '#c7ced6', floorBase = dark ? '#252d36' : '#eef1f4', ceilColor = dark ? '#2b333c' : '#d3d9df';
-  const shown = map.floors.filter((f, k) => V3.mode === 'walk' || V3.all || k <= fi);
+  const shown = map.floors.filter((f, k) => forSim ? k <= fi : (V3.mode === 'walk' || V3.all || k <= fi));
   V3.playerObjs = [];
   let col = null;
   // a 1 m grid on the ground, under everything
@@ -3074,6 +3164,7 @@ function build3D(resetView) {
     // characters and pickups
     for (const it of map.items) {
       if (it.floor !== fl) continue;
+      if (forSim && (it.kind === 'enemy' || it.kind === 'player')) continue;   // the simulation draws its own cast
       if (it.kind === 'enemy') {
         const m = new T3.Mesh(new T3.CapsuleGeometry(0.35, 1.1, 4, 14), mat(typeOf(it.type).color));
         m.position.set(it.x, standAt(it.x, it.y) + 0.9, it.y); sc.add(m);
@@ -3091,6 +3182,7 @@ function build3D(resetView) {
     if (here) {
       for (const s of supports) if (s.wall) s.ring.forEach((p, k) => segs.push({ a: p, b: s.ring[(k + 1) % s.ring.length], half: 0 }));
       col = { segs, supports: supports.filter(s => !s.wall), elev };
+      V3.stand = standAt;
     }
   }
   V3.scene = sc;
@@ -3153,13 +3245,14 @@ function pinchInfo() {
   return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) } : null;
 }
 function endStick() { V3.stick = null; const el = $('#v3dstick'); if (el) el.hidden = true; }
+const camMode = () => sim3DOn() ? (Sim.cam === 'over' || Sim.mode === 'results' ? 'orbit' : 'none') : V3.mode;
 function bind3DInput(cv) {
   const P = V3.ptrs, stick = $('#v3dstick');
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('pointerdown', e => {
     try { cv.setPointerCapture(e.pointerId); } catch {}
     const box = cv.getBoundingClientRect();
-    if (V3.mode === 'walk' && e.pointerType !== 'mouse' && !V3.stick && e.clientX - box.left < box.width * 0.45) {
+    if (camMode() === 'walk' && e.pointerType !== 'mouse' && !V3.stick && e.clientX - box.left < box.width * 0.45) {
       V3.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY, vx: 0, vy: 0 };
       stick.hidden = false; stick.style.left = (e.clientX - box.left) + 'px'; stick.style.top = (e.clientY - box.top) + 'px'; stick.firstElementChild.style.transform = '';
       return;
@@ -3177,7 +3270,8 @@ function bind3DInput(cv) {
     }
     const p = P.get(e.pointerId); if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-    if (V3.mode === 'walk') { V3.walk.yaw += dx * 0.005; V3.walk.pitch = clamp(V3.walk.pitch - dy * 0.005, -1.4, 1.4); }
+    if (camMode() === 'none') return;
+    if (camMode() === 'walk') { V3.walk.yaw += dx * 0.005; V3.walk.pitch = clamp(V3.walk.pitch - dy * 0.005, -1.4, 1.4); }
     else if (P.size >= 2) { const q = pinchInfo(), o = V3.pinch; if (o && q) { V3.orbit.dist = clamp(V3.orbit.dist * o.d / q.d, 2, 800); panOrbit(q.x - o.x, q.y - o.y); } V3.pinch = q; }
     else if (p.mouse && (p.btn === 1 || p.btn === 2 || e.shiftKey)) panOrbit(dx, dy);
     else { V3.orbit.yaw -= dx * 0.008; V3.orbit.pitch = clamp(V3.orbit.pitch + dy * 0.006, 0.08, 1.52); }
@@ -3185,12 +3279,341 @@ function bind3DInput(cv) {
   });
   const end = e => { if (V3.stick && e.pointerId === V3.stick.id) endStick(); P.delete(e.pointerId); V3.pinch = P.size === 2 ? pinchInfo() : null; };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
-  cv.addEventListener('wheel', e => { e.preventDefault(); if (V3.mode === 'orbit') { V3.orbit.dist = clamp(V3.orbit.dist * Math.exp(e.deltaY * 0.0012), 2, 800); V3.dirty = true; } }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); if (camMode() === 'orbit') { V3.orbit.dist = clamp(V3.orbit.dist * Math.exp(e.deltaY * 0.0012), 2, 800); V3.dirty = true; } }, { passive: false });
 }
 $('#view3d').addEventListener('click', () => V3.open ? close3D() : open3D());
 document.querySelectorAll('[data-v3]').forEach(b => b.addEventListener('click', () => set3DMode(b.dataset.v3)));
 $('#v3dall').addEventListener('click', () => { V3.all = !V3.all; $('#v3dall').setAttribute('aria-pressed', String(V3.all)); V3.stale = V3.stale || true; });
 $('#v3dreset').addEventListener('click', () => { V3.stale = 'reset'; });
+
+/* ---------- 3D simulation: the same run, watched from the player's eyes, from behind, or from above ----------
+   The simulation itself doesn't change; this only draws its state each frame. Hit flashes, lunges, the gun kick and
+   the red damage edge read times the simulation stamps (hitT, atkT, shotT, hurtT), so they also hold up when scrubbing. */
+const SIM_CAMS = [['pov', 'POV'], ['follow', 'Follow'], ['over', 'Overview']];
+Sim.cam = 'pov';
+const angWrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+const sim3DOn = () => Sim.active && Sim.v3;
+const overlayOn = () => Sim.active ? !!Sim.v3 : V3.open;
+// the 3D overlay shows for the 3D view, or for a simulation watched in 3D
+function sync3DOverlay() {
+  const on = overlayOn();
+  $('#v3d').hidden = !on;
+  document.body.classList.toggle('v3d-ui', on);
+  document.body.classList.toggle('sim3d', on && Sim.active);
+  $('#simhud').hidden = !(on && Sim.active);
+  if (on && !V3.raf) { V3.last = performance.now(); V3.raf = requestAnimationFrame(loop3D); }
+  if (!on && V3.raf) { cancelAnimationFrame(V3.raf); V3.raf = 0; }
+  if (on) resize3D();
+}
+async function simSet3D(on) {
+  if (on) {
+    try { await loadThree(); } catch { toast('The 3D view couldn’t load. It needs an internet connection the first time.'); return; }
+    if (!Sim.active) return;
+    if (!V3.R) init3D();
+    Sim.v3 = true; V3.dyn = null; V3.stale = 'sim';
+  } else Sim.v3 = false;
+  sync3DOverlay(); syncSimBar();
+}
+function buildSim3D(reset) {
+  build3D(reset, true);
+  V3.dyn = null;
+  buildSimDyn();
+}
+// characters, doors, shots and effects, rebuilt whenever the run restarts (each restart makes new enemy objects)
+function buildSimDyn() {
+  const T3 = window.THREE, sc = V3.scene;
+  if (V3.dyn) { sc.remove(V3.dyn.root); V3.dyn.root.traverse(o => { if (o.material) o.material.dispose(); }); }
+  const root = new T3.Group(); sc.add(root);
+  const th = clamp(settings.roomLine, 0.15, 1), elev = floorElev(Sim.floor), H = floorHt(map.floors.find(f => f.id === Sim.floor));
+  const geo = V3.simGeo || (V3.simGeo = { capsule: new T3.CapsuleGeometry(0.35, 1.1, 4, 14), plane: new T3.PlaneGeometry(1, 1), unit: new T3.BoxGeometry(1, 1, 1),
+    ball: new T3.SphereGeometry(1, 14, 10), cone: new T3.ConeGeometry(0.16, 0.5, 14), bar: new T3.PlaneGeometry(1, 1).translate(0.5, 0, 0) });
+  const D = { root, src: Sim.foes, foes: [], doors: [], proj: [], shots: [], fx: [], extra: null, extraKey: '' };
+  for (const f of Sim.foes) {
+    const m = new T3.MeshLambertMaterial({ color: new T3.Color(f.type.color), transparent: true });
+    const g = new T3.Group(), pivot = new T3.Group(), body = new T3.Mesh(geo.capsule, m);
+    body.position.y = 0.9; pivot.add(body); g.add(pivot);
+    const bar = new T3.Group(); bar.position.y = 2.2;
+    const bg = new T3.Mesh(geo.plane, new T3.MeshBasicMaterial({ color: 0x0a0e14, transparent: true, opacity: 0.6, depthWrite: false })); bg.scale.set(0.84, 0.13, 1);
+    const fillM = new T3.MeshBasicMaterial({ color: new T3.Color(T.ok), depthWrite: false }), fill = new T3.Mesh(geo.bar, fillM);
+    fill.position.set(-0.4, 0, 0.002); fill.scale.set(0.8, 0.08, 1);
+    bar.add(bg, fill); g.add(bar); root.add(g);
+    D.foes.push({ f, g, pivot, m, bar, fill, fillM, x: f.x, y: f.y, z: V3.stand ? V3.stand(f.x, f.y) : elev });
+  }
+  const pg = new T3.Group(), pm = new T3.MeshLambertMaterial({ color: new T3.Color(PLAYER_COLOR) });
+  const pb = new T3.Mesh(geo.capsule, pm); pb.position.y = 0.9;
+  const nose = new T3.Mesh(geo.cone, pm); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 1.35, -0.55);
+  pg.add(pb, nose); root.add(pg);
+  const p = Sim.player;
+  D.player = { g: pg, x: p.x, y: p.y, z: V3.stand ? V3.stand(p.x, p.y) : elev, yaw: p.face, bob: 0, spd: 0 };
+  // door panels slide into the wall to open; red while locked, green as a cleared arena opens
+  for (const d of Sim.doors) {
+    if (!d.onWall) continue;
+    const h = Math.min(DOOR_H, H), m = new T3.MeshLambertMaterial({ color: 0x8b96a1 }), mesh = new T3.Mesh(geo.unit, m);
+    mesh.scale.set(d.w, h, th * 0.6); mesh.rotation.y = -rad(d.rot); mesh.position.y = elev + h / 2;
+    root.add(mesh);
+    D.doors.push({ d, mesh, m, open: d.state === 'open' ? 1 : 0, was: d.state, greenT: -9 });
+  }
+  V3.dyn = D; V3.dirty = true;
+}
+// a pooled mesh for shots, projectiles and puffs
+function poolMesh(list, k, geo) {
+  if (!list[k]) {
+    const T3 = window.THREE, m = new T3.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
+    list[k] = new T3.Mesh(geo, m); V3.dyn.root.add(list[k]);
+  }
+  list[k].visible = true;
+  return list[k];
+}
+function makeGun() {
+  const T3 = window.THREE, scene = new T3.Scene(), cam = new T3.PerspectiveCamera(65, 1, 0.01, 10);
+  scene.add(new T3.HemisphereLight(0xffffff, 0x3c424a, 2.4));
+  const sun = new T3.DirectionalLight(0xffffff, 1.7); sun.position.set(0.4, 1, 0.7); scene.add(sun);
+  const dark = new T3.MeshLambertMaterial({ color: 0x353b43 }), mid = new T3.MeshLambertMaterial({ color: 0x5c6570 });
+  const g = new T3.Group();
+  const add = (geo, m, x, y, z, rx = 0) => { const o = new T3.Mesh(geo, m); o.position.set(x, y, z); o.rotation.x = rx; g.add(o); return o; };
+  add(new T3.BoxGeometry(0.075, 0.095, 0.34), dark, 0, 0, 0);                                // body
+  add(new T3.CylinderGeometry(0.02, 0.02, 0.24, 12), mid, 0, 0.012, -0.27, Math.PI / 2);      // barrel
+  add(new T3.BoxGeometry(0.06, 0.14, 0.07), dark, 0, -0.1, 0.08, -0.3);                      // grip
+  add(new T3.BoxGeometry(0.016, 0.022, 0.05), mid, 0, 0.058, -0.1);                         // sight
+  // muzzle flash: a bright core with four short spikes
+  const core = new T3.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.95, depthWrite: false });
+  const spike = new T3.MeshBasicMaterial({ color: 0xffb52e, transparent: true, opacity: 0.9, depthWrite: false });
+  const flash = new T3.Group(); flash.position.set(0, 0.012, -0.41);
+  flash.add(new T3.Mesh(new T3.CircleGeometry(0.035, 14), core));
+  for (const a of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) { const m = new T3.Mesh(new T3.PlaneGeometry(a % (Math.PI / 2) ? 0.09 : 0.14, 0.018), spike); m.rotation.z = a; m.position.z = -0.001; flash.add(m); }
+  g.add(flash); scene.add(g);
+  return { scene, cam, g, flash: [flash] };
+}
+function stepSim3D(dt) {
+  const results = Sim.mode === 'results' || Sim.mode === 'batch';
+  if (!results && (!V3.dyn || V3.dyn.src !== Sim.foes)) buildSimDyn();
+  const D = V3.dyn; if (!D) return;
+  const T3 = window.THREE, cam = V3.cam, p = Sim.player, elev = floorElev(Sim.floor);
+  const stand = V3.stand || (() => elev), k = Math.min(1, dt * 18), cm = results ? 'over' : Sim.cam;
+  D.root.visible = !results;
+  // player: eased toward the simulation's position, snapping after a jump on the timeline
+  const P = D.player, ox = P.x, oy = P.y;
+  if (Math.hypot(p.x - P.x, p.y - P.y) > 3) { P.x = p.x; P.y = p.y; P.yaw = p.face; }
+  P.x += (p.x - P.x) * k; P.y += (p.y - P.y) * k; P.z += (stand(P.x, P.y) - P.z) * k;
+  P.spd += ((dt > 0 ? Math.hypot(P.x - ox, P.y - oy) / dt : 0) - P.spd) * Math.min(1, dt * 6);
+  P.yaw += angWrap(p.face - P.yaw) * Math.min(1, dt * 9);
+  P.bob += dt * P.spd * 1.7;
+  P.g.position.set(P.x, P.z, P.y); P.g.rotation.y = -P.yaw - Math.PI / 2; P.g.visible = cm !== 'pov';
+  // cameras
+  if (cm === 'pov') {
+    const sway = Math.min(1, P.spd / 5), eye = P.z + v3s().eye + Math.sin(P.bob * 2) * 0.03 * sway;
+    if (cam.near !== 0.05) { cam.near = 0.05; cam.updateProjectionMatrix(); }
+    cam.position.set(P.x, eye, P.y); cam.lookAt(P.x + Math.cos(P.yaw), eye, P.y + Math.sin(P.yaw));
+  } else if (cm === 'follow') {
+    if (cam.near !== 0.05) { cam.near = 0.05; cam.updateProjectionMatrix(); }
+    const cx = Math.cos(P.yaw), cy = Math.sin(P.yaw);
+    cam.position.set(P.x - cx * 4.4, P.z + 3.4, P.y - cy * 4.4); cam.lookAt(P.x + cx * 3, P.z + 0.9, P.y + cy * 3);
+  } else placeCamera();
+  // enemies
+  for (const F of D.foes) {
+    const f = F.f;
+    if (Math.hypot(f.x - F.x, f.y - F.y) > 3) { F.x = f.x; F.y = f.y; }
+    F.x += (f.x - F.x) * k; F.y += (f.y - F.y) * k; F.z += (stand(F.x, F.y) - F.z) * k;
+    if (f.dead) {
+      // tips over away from the player, then fades
+      const age = Sim.t - f.deadT;
+      F.g.visible = age < 1.6; F.bar.visible = false;
+      F.g.rotation.y = -Math.atan2(f.y - p.y, f.x - p.x) - Math.PI / 2;
+      F.pivot.rotation.x = -Math.min(1, age / 0.35) * Math.PI / 2;
+      F.m.opacity = age < 0.6 ? 1 : Math.max(0, 1 - (age - 0.6));
+      F.m.emissive.setScalar(0);
+      F.g.position.set(F.x, F.z, F.y);
+      continue;
+    }
+    F.g.visible = true; F.bar.visible = true; F.g.rotation.y = 0; F.pivot.rotation.x = 0;
+    F.m.opacity = f.asleep ? 0.45 : 1;
+    const ha = Sim.t - (f.hitT ?? -9); F.m.emissive.setScalar(ha >= 0 && ha < 0.12 ? 0.85 * (1 - ha / 0.12) : 0);
+    let lx = 0, ly = 0;
+    const aa = Sim.t - (f.atkT ?? -9);
+    if (f.type.attack === 'melee' && aa >= 0 && aa < 0.25) { const d = Math.hypot(p.x - F.x, p.y - F.y) || 1, s = 0.45 * Math.sin(Math.PI * aa / 0.25); lx = (p.x - F.x) / d * s; ly = (p.y - F.y) / d * s; }
+    F.g.position.set(F.x + lx, F.z, F.y + ly);
+    const frac = clamp(f.hp / f.type.hp, 0, 1);
+    F.fill.scale.x = 0.8 * frac; F.fillM.color.set(frac > 0.5 ? T.ok : frac > 0.25 ? T.warn : T.danger);
+    F.bar.quaternion.copy(cam.quaternion);
+  }
+  // doors
+  for (const DD of D.doors) {
+    const d = DD.d;
+    if (DD.was === 'locked' && d.state === 'open') DD.greenT = Sim.t;
+    DD.was = d.state;
+    const want = d.state === 'open' ? 1 : 0;
+    DD.open += clamp(want - DD.open, -dt * 3, dt * 3);
+    const a = rad(d.rot), off = DD.open * d.w;
+    DD.mesh.position.x = d.x + Math.cos(a) * off; DD.mesh.position.z = d.y + Math.sin(a) * off;
+    DD.mesh.visible = DD.open < 0.98;
+    DD.m.color.set(d.state === 'locked' ? T.danger : Sim.t - DD.greenT < 1.5 ? T.ok : (T.dark ? '#6b7682' : '#8b96a1'));
+  }
+  // projectiles
+  let n = 0;
+  for (const b of Sim.proj) {
+    const m = poolMesh(D.proj, n++, V3.simGeo.ball);
+    m.scale.setScalar(0.17); m.material.color.set(b.type.color); m.material.opacity = 1;
+    m.position.set(b.x, stand(b.x, b.y) + 1.3, b.y);
+  }
+  for (; n < D.proj.length; n++) D.proj[n].visible = false;
+  // tracers (boxes), melee hits and puffs (spheres), each from its own pool
+  n = 0; let ns = 0;
+  const muzzle = new T3.Vector3(0.1, -0.09, -1.1).applyQuaternion(cam.quaternion).add(cam.position);
+  for (const e of Sim.fx) {
+    const age = Sim.t - e.t;
+    if (e.k === 'shot') {
+      if (age > 0.15) continue;
+      const mine = e.color === PLAYER_COLOR, m = poolMesh(D.shots, ns++, V3.simGeo.unit), w = mine && cm === 'pov' ? 0.018 : 0.035;
+      const a = mine && cm === 'pov' ? muzzle : new T3.Vector3(e.x1, stand(e.x1, e.y1) + 1.35, e.y1), b = new T3.Vector3(e.x2, stand(e.x2, e.y2) + 1.2, e.y2);
+      if (!mine && cm === 'pov') { const L = a.distanceTo(b); if (L > 1.5) b.lerp(a, 1.2 / L); }   // stop shots at you short of the lens
+      m.position.copy(a).lerp(b, 0.5); m.scale.set(w, w, Math.max(0.01, a.distanceTo(b))); m.lookAt(b);
+      m.material.color.set(mine ? '#ffe08a' : e.color); m.material.opacity = 1 - age / 0.15;
+    } else {
+      if (e.k === 'melee' && cm === 'pov') continue;   // the red screen edge covers it up close
+      const m = poolMesh(D.fx, n++, V3.simGeo.ball);
+      m.rotation.set(0, 0, 0); m.position.set(e.x, stand(e.x, e.y) + 1.1, e.y);
+      m.scale.setScalar(e.k === 'melee' ? 0.35 + age * 2 : 0.12 + age * 1.2);
+      m.material.color.set(e.color); m.material.opacity = Math.max(0, 1 - age / 0.45) * (e.k === 'melee' ? 0.45 : 0.8);
+    }
+  }
+  for (; n < D.fx.length; n++) D.fx[n].visible = false;
+  for (; ns < D.shots.length; ns++) D.shots[ns].visible = false;
+  simExtras(results);
+  V3.dirty = true;
+}
+// after Run 10×: the summed damage heatmap and every run's trail, on the 3D floor
+function simExtras(results) {
+  const D = V3.dyn, T3 = window.THREE, B = Batch;
+  if (!results || !B || Sim.mode !== 'results') { if (D.extra) D.extra.visible = false; return; }
+  const key = B.runs.length + ':' + B.runs.map(r => r.seed).join(',');
+  if (D.extraKey !== key) {
+    if (D.extra) { V3.scene.remove(D.extra); D.extra.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+    const g = new T3.Group(), heat = new T3.Group(), trails = new T3.Group(), grid = Sim.world.grid, elev = floorElev(Sim.floor);
+    const kk = Math.max(1, Math.round(1 / grid.cs)), bw = Math.ceil(grid.nx / kk), bh = Math.ceil(grid.ny / kk), sum = new Float32Array(bw * bh);
+    for (let c = 0; c < B.heat.length; c++) if (B.heat[c]) { const i = c % grid.nx, j = (c - i) / grid.nx; sum[Math.floor(j / kk) * bw + Math.floor(i / kk)] += B.heat[c]; }
+    let max = 0; for (const v of sum) if (v > max) max = v;
+    if (max) {
+      const tiers = [0, 1, 2, 3, 4].map(() => ({ pos: [], nor: [] })), s = kk * grid.cs;
+      for (let q = 0; q < sum.length; q++) if (sum[q]) {
+        const i = q % bw, j = (q - i) / bw;
+        boxInto(tiers[Math.min(4, Math.floor(sum[q] / max * 5))], grid.x0 + (i + 0.5) * s, grid.y0 + (j + 0.5) * s, 0, s, s, elev + 0.04, elev + 0.06);
+      }
+      tiers.forEach((t, k2) => { if (t.pos.length) heat.add(meshFromBoxes(t, new T3.MeshBasicMaterial({ color: new T3.Color(T.danger), transparent: true, opacity: 0.18 + k2 * 0.15, depthWrite: false }))); });
+    }
+    B.runs.forEach((r, k2) => {
+      if (r.trail.length < 2) return;
+      const pts = r.trail.map(([x, y]) => new T3.Vector3(x, elev + 0.1 + k2 * 0.01, y));
+      trails.add(new T3.Line(new T3.BufferGeometry().setFromPoints(pts), new T3.LineBasicMaterial({ color: new T3.Color().setHSL(((k2 * 47 + 200) % 360) / 360, 0.8, 0.52) })));
+    });
+    g.add(heat, trails); g.userData = { heat, trails };
+    V3.scene.add(g); D.extra = g; D.extraKey = key;
+  }
+  D.extra.visible = true;
+  D.extra.userData.heat.visible = Sim.view.heat; D.extra.userData.trails.visible = Sim.view.trails;
+}
+function renderSim3D() {
+  const R = V3.R, cam = V3.cam, results = Sim.mode === 'results' || Sim.mode === 'batch';
+  R.clear(); R.render(V3.scene, cam);
+  if (Sim.cam === 'pov' && !results) {
+    // the gun is drawn last, over everything, from its own camera fixed to the view
+    const G = V3.gun || (V3.gun = makeGun()), p = Sim.player, P = V3.dyn.player;
+    G.cam.fov = cam.fov; G.cam.aspect = cam.aspect; G.cam.updateProjectionMatrix();
+    const z = 0.5, hh = z * Math.tan(rad(cam.fov / 2)), hw = hh * cam.aspect, sway = Math.min(1, P.spd / 5);
+    const age = Sim.t - (p.shotT ?? -9), kick = age >= 0 && age < 0.12 ? (1 - age / 0.12) * 0.05 : 0;
+    G.g.position.set(Math.min(0.18, hw * 0.5) + Math.cos(P.bob) * 0.01 * sway, -hh * 0.36 + Math.sin(P.bob * 2) * 0.012 * sway, -z + kick);   // high enough to clear the sim bar
+    G.g.rotation.set(kick * 1.6 + 0.05, 0.08, 0); G.g.scale.setScalar(0.72);
+    const lit = age >= 0 && age < 0.06;
+    G.flash.forEach(f => { f.visible = lit; });
+    R.clearDepth(); R.render(G.scene, G.cam);
+  }
+  const hud = $('#simhud'), c = hud.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, hud.width, hud.height);
+  drawHUD(c, hud.width, hud.height, hud.width / Math.max(1, hud.clientWidth));
+  recFrame();
+}
+// health, kills and time top left; the arena, messages and the result top centre; a red edge when the player is hit
+function drawHUD(c, W, H, s) {
+  if (Sim.mode === 'results' || Sim.mode === 'batch') return;
+  const p = Sim.player, w = W / s, h = H / s;
+  c.save(); c.scale(s, s);
+  const ha = Sim.t - (p.hurtT ?? -9);
+  if (ha >= 0 && ha < 0.3) {
+    const r = Math.hypot(w, h) / 2, g = c.createRadialGradient(w / 2, h / 2, r * 0.6, w / 2, h / 2, r);
+    g.addColorStop(0, 'rgba(220,30,40,0)'); g.addColorStop(1, `rgba(220,30,40,${0.55 * (1 - ha / 0.3)})`);
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+  }
+  const pill = (x, y, pw, ph) => { c.beginPath(); c.roundRect ? c.roundRect(x, y, pw, ph, 10) : c.rect(x, y, pw, ph); c.fill(); };
+  const f = clamp(p.hp / Sim.P.hp, 0, 1), total = Sim.foes.length, down = Sim.foes.filter(e => e.dead).length;
+  c.fillStyle = 'rgba(10,14,20,.6)'; pill(12, 12, 160, 50);
+  c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(22, 22, 140, 8);
+  c.fillStyle = f > 0.5 ? T.ok : f > 0.25 ? T.warn : T.danger; c.fillRect(22, 22, 140 * f, 8);
+  c.fillStyle = '#ffffff'; c.font = `600 14px ${T.display}`; c.textBaseline = 'middle'; c.textAlign = 'left';
+  c.fillText(`${Math.max(0, Math.round(p.hp))} HP`, 22, 46);
+  c.textAlign = 'right'; c.font = `500 12px ${T.mono}`; c.fillText(`${down}/${total} · ${clock(Sim.t)}`, 162, 46);
+  const o = Sim.over, lines = [];
+  if (o) lines.push([{ win: 'Level cleared', objective: 'Objective reached', dead: 'Player down', time: 'Out of time', stuck: 'Player got stuck' }[o.result], o.result === 'win' || o.result === 'objective' ? '#5ad98f' : '#ff7a7e', 20]);
+  else if (Sim.lockRoom >= 0) lines.push([`${Sim.rooms[Sim.lockRoom].label} · ${Sim.foes.filter(e => !e.dead && e.home === Sim.lockRoom).length} left`, '#ff7a7e', 15]);
+  if (!o && Sim.t < Sim.msgT) lines.push([Sim.msg, '#ffffff', 13]);
+  let y = w < 560 ? 72 : 12;
+  c.textAlign = 'center';
+  for (const [text, color, size] of lines) {
+    c.font = `600 ${size}px ${T.display}`;
+    const tw = Math.min(w - 32, c.measureText(text).width + 24), ph = size + 16;
+    c.fillStyle = 'rgba(10,14,20,.6)'; pill(w / 2 - tw / 2, y, tw, ph);
+    c.fillStyle = color; c.fillText(text, w / 2, y + ph / 2 + 0.5, w - 48);
+    y += ph + 6;
+  }
+  c.restore();
+}
+
+/* clips: what's on screen, HUD included, recorded to a video file */
+const Rec = { on: false };
+function recMime() {
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
+  return ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null;
+}
+const recSource = () => sim3DOn() && V3.R ? V3.R.domElement : canvas;
+function recStart(whole) {
+  const mime = recMime();
+  if (!mime) { toast('Recording clips isn’t supported in this browser.'); return; }
+  const src = recSource(), k = Math.min(1, 1280 / Math.max(src.width, src.height));
+  const comp = document.createElement('canvas');
+  comp.width = Math.max(2, Math.round(src.width * k / 2) * 2); comp.height = Math.max(2, Math.round(src.height * k / 2) * 2);
+  let rec;
+  try { rec = new MediaRecorder(comp.captureStream(30), { mimeType: mime, videoBitsPerSecond: 3000000 }); }
+  catch { toast('Recording clips isn’t supported in this browser.'); return; }
+  const name = `${slug(map.name)}-${Sim.mode === 'replay' ? 'run-' + (Sim.replay + 1) : 'sim'}`;
+  Object.assign(Rec, { on: true, rec, comp, cx: comp.getContext('2d'), chunks: [], t0: performance.now(), whole, endT: null });
+  rec.ondataavailable = e => { if (e.data && e.data.size) Rec.chunks.push(e.data); };
+  rec.onstop = () => {
+    const type = mime.split(';')[0], blob = new Blob(Rec.chunks, { type }); Rec.chunks = [];
+    if (blob.size) offerFile(`${name}.${type === 'video/mp4' ? 'mp4' : 'webm'}`, blob); else toast('The clip came out empty.');
+  };
+  rec.start(1000);
+  recFrame();
+  toast(whole ? 'Recording the whole run. It saves when the run ends.' : 'Recording. Tap the red button to stop (60 seconds at most).');
+}
+function recStop() { if (!Rec.on) return; Rec.on = false; try { Rec.rec.stop(); } catch {} }
+function recFrame() {
+  if (!Rec.on) return;
+  const el = (performance.now() - Rec.t0) / 1000;
+  if (!Rec.whole && el >= 60) { recStop(); toast('Clip stopped at 60 seconds.'); return; }
+  if (Rec.whole && (Sim.over || el >= 300)) { Rec.endT ??= el; if (el - Rec.endT > 1.5) { recStop(); return; } }
+  const src = recSource(), c = Rec.cx, W = Rec.comp.width, H = Rec.comp.height;
+  c.drawImage(src, 0, 0, W, H);
+  drawHUD(c, W, H, W / Math.max(1, src.clientWidth || W));
+}
+$('#sim3d').addEventListener('click', () => simSet3D(!Sim.v3));
+$('#simcam').addEventListener('click', () => {
+  const k = SIM_CAMS.findIndex(c => c[0] === Sim.cam);
+  Sim.cam = SIM_CAMS[(k + 1) % SIM_CAMS.length][0];
+  syncSimBar();
+});
+$('#simrec').addEventListener('click', () => {
+  if (Rec.on) { recStop(); return; }
+  if (Sim.mode === 'replay') { Sim.seekTo = 0; Sim.seekPlay = true; Sim.last = performance.now(); recStart(true); }
+  else if (Sim.mode === 'live') recStart(false);
+});
 
 /* ---------- shape builder: the editor on a scratch map whose shapes become a master ---------- */
 async function openBuilder(masterId, back) {
@@ -3793,7 +4216,7 @@ document.addEventListener('keyup', e => { if (e.key === ' ') spaceHeld = false; 
 window.addEventListener('blur', () => { spaceHeld = false; V3.keys.clear(); });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea')) return;
-  if (V3.open && !sheetEl && !pageBuild && !menuOpen()) {
+  if (V3.open && !Sim.active && !sheetEl && !pageBuild && !menuOpen()) {
     const k = e.key.toLowerCase();
     if (k === 'escape') close3D();
     else if (!e.ctrlKey && !e.metaKey && !e.altKey && V3.mode === 'walk' && WALK_KEYS.includes(k)) { e.preventDefault(); V3.keys.add(k); }
