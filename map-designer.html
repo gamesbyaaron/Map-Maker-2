@@ -342,6 +342,12 @@ i b { font-weight: 600; }
 }
 .stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 28%, transparent); background: color-mix(in srgb, var(--surface) 30%, transparent); pointer-events: none; }
 .stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: var(--shadow); }
+.simshow {
+  position: absolute; z-index: 7; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 6px;
+  height: 38px; padding: 0 14px 0 10px; border-radius: 19px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow); font-weight: 600; font-size: 13px;
+}
+.simshow svg { width: 18px; height: 18px; }
+.simrow .grow { min-width: 0; } .simrow .grow strong, .simrow .grow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .simrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .simrow.ctl { justify-content: space-between; }
 #simcam { width: auto; padding: 0 10px; font-size: 13px; font-weight: 600; }
@@ -425,6 +431,7 @@ i b { font-weight: 600; }
   <div class="bar" id="bar" hidden></div>
   <button class="simfab" id="simfab"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Simulate</button>
   <div class="simres" id="simres" hidden></div>
+  <button class="simshow" id="simshow" hidden aria-label="Show the controls"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>Controls</button>
   <div class="v3d" id="v3d" hidden>
     <canvas id="v3dcanvas" aria-label="3D view of the map"></canvas>
     <div class="v3d-top">
@@ -442,6 +449,7 @@ i b { font-weight: 600; }
       <button class="iconbtn" id="sim3d" aria-label="Watch in 3D" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></button>
       <button class="iconbtn mono" id="simcam" aria-label="Camera" hidden>POV</button>
       <button class="iconbtn" id="simrec" aria-label="Record a clip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/></svg></button>
+      <button class="iconbtn" id="simhide" aria-label="Hide the controls"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
     <div class="simtl" id="simtl">
       <div class="simmarks" id="simmarks"></div>
@@ -2439,7 +2447,7 @@ function simOpen() {
   clearSel(); tool = 'select';
   Sim.active = true; Sim.v3 = V3.open && !!window.THREE; Sim.cam = 'pov';
   document.body.classList.add('sim-ui');
-  $('#simbar').hidden = false;
+  $('#simbar').hidden = false; $('#simshow').hidden = true;
   renderAll();
   simLive(newSeed(), null);
   if (Sim.v3) { V3.dyn = null; V3.stale = 'sim'; }
@@ -2473,7 +2481,7 @@ function simStop() {
   recStop();
   Sim.active = false; Batch = Batch && Batch.done === Batch.n ? Batch : null;
   document.body.classList.remove('sim-ui');
-  $('#simbar').hidden = true; $('#simres').hidden = true;
+  $('#simbar').hidden = true; $('#simres').hidden = true; $('#simshow').hidden = true;
   V3.dyn = null;
   if (V3.open) V3.stale = V3.stale || true;
   sync3DOverlay();
@@ -3434,6 +3442,7 @@ function stepSim3D(dt) {
     F.g.position.set(F.x + lx, F.z, F.y + ly);
     const frac = clamp(f.hp / f.type.hp, 0, 1);
     F.fill.scale.x = 0.8 * frac; F.fillM.color.set(frac > 0.5 ? T.ok : frac > 0.25 ? T.warn : T.danger);
+    F.bar.visible = !(cm === 'pov' && Math.hypot(F.x - P.x, F.y - P.y) < 2);   // up close it would fill the screen
     F.bar.quaternion.copy(cam.quaternion);
   }
   // doors
@@ -3604,6 +3613,9 @@ function recFrame() {
   drawHUD(c, W, H, W / Math.max(1, src.clientWidth || W));
 }
 $('#sim3d').addEventListener('click', () => simSet3D(!Sim.v3));
+// tuck the sim bar away for a clear view (playback and recording carry on), and bring it back from the corner pill
+$('#simhide').addEventListener('click', () => { $('#simbar').hidden = true; $('#simshow').hidden = false; });
+$('#simshow').addEventListener('click', () => { $('#simbar').hidden = false; $('#simshow').hidden = true; });
 $('#simcam').addEventListener('click', () => {
   const k = SIM_CAMS.findIndex(c => c[0] === Sim.cam);
   Sim.cam = SIM_CAMS[(k + 1) % SIM_CAMS.length][0];
